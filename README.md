@@ -1,4 +1,4 @@
-[index.html](https://github.com/user-attachments/files/26527264/index.html)
+[index (1).html](https://github.com/user-attachments/files/26527449/index.1.html)
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -96,13 +96,16 @@ section{padding:6rem 2rem;}
 /* HOURS */
 #visit{background:var(--brown-dark);}
 .visit-grid{display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:start;}
-.hours-table{width:100%;border-collapse:collapse;margin-top:1.5rem;}
-.hours-table tr{border-bottom:1px solid rgba(201,168,76,.08);}
-.hours-table tr:last-child{border-bottom:none;}
-.hours-table td{padding:.85rem 0;font-size:.82rem;color:var(--cream-dim);}
-.hours-table td:first-child{color:var(--cream);font-weight:500;letter-spacing:.05em;}
-.hours-table td:last-child{text-align:right;}
-.hours-table tr.today td{color:var(--gold);}
+.hours-list{display:flex;flex-direction:column;gap:.5rem;margin-top:1.5rem;}
+.hours-row{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1.1rem;border:1px solid rgba(201,168,76,.08);background:rgba(255,255,255,.018);transition:border-color .2s;}
+.hours-row:hover{border-color:rgba(201,168,76,.2);}
+.hours-row.today{border-color:rgba(201,168,76,.35);background:rgba(201,168,76,.07);}
+.hours-day{font-size:.78rem;font-weight:500;letter-spacing:.06em;color:var(--cream-dim);}
+.hours-row.today .hours-day{color:var(--gold);}
+.hours-time{font-size:.78rem;color:var(--cream-dim);letter-spacing:.03em;}
+.hours-row.today .hours-time{color:var(--gold);}
+.hours-row.today::before{content:'Open Today';font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);background:rgba(201,168,76,.15);padding:.2rem .6rem;border:1px solid rgba(201,168,76,.3);margin-right:.5rem;}
+
 .info-cards{display:flex;flex-direction:column;gap:1.2rem;margin-top:1.5rem;}
 .info-card{display:flex;gap:1.2rem;align-items:flex-start;padding:1.4rem;border:1px solid rgba(201,168,76,.1);}
 .info-card-icon{font-size:1.3rem;flex-shrink:0;}
@@ -217,15 +220,15 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
         <div class="section-label">Hours</div>
         <h2 class="section-title">Come <em>Unwind</em></h2>
         <div class="divider"></div>
-        <table class="hours-table">
-          <tr id="row-mon"><td>Monday</td><td>9:00 AM &ndash; 11:00 PM</td></tr>
-          <tr id="row-tue"><td>Tuesday</td><td>9:00 AM &ndash; 11:00 PM</td></tr>
-          <tr id="row-wed"><td>Wednesday</td><td>9:00 AM &ndash; 11:00 PM</td></tr>
-          <tr id="row-thu"><td>Thursday</td><td>9:00 AM &ndash; 12:00 AM</td></tr>
-          <tr id="row-fri"><td>Friday</td><td>9:00 AM &ndash; 12:00 AM</td></tr>
-          <tr id="row-sat"><td>Saturday</td><td>9:00 AM &ndash; 12:00 AM</td></tr>
-          <tr id="row-sun"><td>Sunday</td><td>10:00 AM &ndash; 8:00 PM</td></tr>
-        </table>
+        <div class="hours-list">
+          <div class="hours-row" id="row-mon"><span class="hours-day">Monday</span><span class="hours-time">9:00 AM &ndash; 11:00 PM</span></div>
+          <div class="hours-row" id="row-tue"><span class="hours-day">Tuesday</span><span class="hours-time">9:00 AM &ndash; 11:00 PM</span></div>
+          <div class="hours-row" id="row-wed"><span class="hours-day">Wednesday</span><span class="hours-time">9:00 AM &ndash; 11:00 PM</span></div>
+          <div class="hours-row" id="row-thu"><span class="hours-day">Thursday</span><span class="hours-time">9:00 AM &ndash; 12:00 AM</span></div>
+          <div class="hours-row" id="row-fri"><span class="hours-day">Friday</span><span class="hours-time">9:00 AM &ndash; 12:00 AM</span></div>
+          <div class="hours-row" id="row-sat"><span class="hours-day">Saturday</span><span class="hours-time">9:00 AM &ndash; 12:00 AM</span></div>
+          <div class="hours-row" id="row-sun"><span class="hours-day">Sunday</span><span class="hours-time">10:00 AM &ndash; 8:00 PM</span></div>
+        </div>
       </div>
       <div>
         <div class="section-label">Find Us</div>
