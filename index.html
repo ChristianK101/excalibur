@@ -121,12 +121,51 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 .footer-links a{font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--cream-dim);text-decoration:none;transition:color .2s;}
 .footer-links a:hover{color:var(--gold);}
 .footer-copy{font-size:.68rem;color:rgba(200,185,154,.35);}
+/* AGE GATE */
+.age-gate-overlay{position:fixed;inset:0;background:rgba(10,5,2,.97);z-index:999;display:flex;align-items:center;justify-content:center;padding:1.5rem;}
+.age-gate{max-width:480px;width:100%;text-align:center;padding:3rem 2.5rem;border:1px solid rgba(201,168,76,.25);background:var(--brown-mid);}
+.age-gate-logo{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--gold);letter-spacing:.12em;margin-bottom:.4rem;}
+.age-gate-tagline{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--cream-dim);margin-bottom:2rem;}
+.age-gate-divider{width:50px;height:1px;background:var(--gold-dim);margin:0 auto 2rem;}
+.age-gate-title{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:300;color:var(--cream);margin-bottom:.8rem;}
+.age-gate-subtitle{font-size:.8rem;color:var(--cream-dim);line-height:1.7;margin-bottom:2rem;}
+.age-gate-subtitle strong{color:var(--gold);}
+.age-gate-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;}
+.age-gate-yes{padding:.9rem 2.5rem;background:var(--gold);border:1px solid var(--gold);color:var(--brown-dark);font-family:'Montserrat',sans-serif;font-size:.72rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:background .2s;}
+.age-gate-yes:hover{background:var(--gold-light);}
+.age-gate-no{padding:.9rem 2.5rem;background:transparent;border:1px solid rgba(201,168,76,.3);color:var(--cream-dim);font-family:'Montserrat',sans-serif;font-size:.72rem;font-weight:400;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.age-gate-no:hover{border-color:rgba(201,168,76,.6);color:var(--cream);}
+.age-gate-disclaimer{font-size:.62rem;color:rgba(200,185,154,.35);margin-top:1.5rem;line-height:1.6;}
+/* INSTAGRAM */
+#instagram{background:var(--brown-mid);padding:4rem 2rem;text-align:center;}
+.instagram-inner{max-width:600px;margin:0 auto;}
+.instagram-icon{font-size:2.5rem;margin-bottom:1rem;}
+.instagram-handle{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:var(--gold);margin-bottom:.6rem;}
+.instagram-desc{font-size:.82rem;color:var(--cream-dim);line-height:1.7;margin-bottom:1.8rem;}
+.instagram-btn{display:inline-flex;align-items:center;gap:.6rem;padding:.9rem 2.4rem;border:1px solid rgba(201,168,76,.5);color:var(--gold);background:transparent;font-family:'Montserrat',sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;text-decoration:none;transition:all .3s;}
+.instagram-btn:hover{background:rgba(201,168,76,.1);border-color:var(--gold);}
 /* MOBILE */
 @media(max-width:900px){.nav-links a span,.nav-links button span{display:none;}.nav-links a,.nav-links button{padding:.45rem .7rem;}.nav-links a.nav-cta span{display:inline;}.nav-links a.nav-cta{padding:.45rem 1rem;}}
 @media(max-width:700px){nav{padding:.9rem 1rem;}.nav-logo{font-size:1.1rem;}.about-grid,.visit-grid,.reviews-grid{grid-template-columns:1fr;gap:2.5rem;}.about-stats{grid-template-columns:1fr 1fr;}.reviews-header{flex-direction:column;align-items:flex-start;}}
 </style>
 </head>
 <body>
+
+<!-- AGE VERIFICATION -->
+<div class="age-gate-overlay" id="ageGate">
+  <div class="age-gate">
+    <div class="age-gate-logo">Excalibur</div>
+    <div class="age-gate-tagline">Cigar &amp; Scotch Lounge &middot; San Diego</div>
+    <div class="age-gate-divider"></div>
+    <div class="age-gate-title">Are you 21 or older?</div>
+    <div class="age-gate-subtitle">This website contains content related to <strong>tobacco and alcohol</strong>. You must be of legal age to enter.</div>
+    <div class="age-gate-btns">
+      <button class="age-gate-yes" onclick="enterSite()">Yes, I'm 21+</button>
+      <button class="age-gate-no" onclick="denySite()">No, I'm under 21</button>
+    </div>
+    <div class="age-gate-disclaimer">By entering you confirm you are of legal drinking and smoking age in your jurisdiction. Excalibur Cigar &amp; Scotch Lounge promotes responsible enjoyment.</div>
+  </div>
+</div>
 
 <!-- RESERVATION MODAL -->
 <div class="call-modal-overlay" id="callModal" onclick="if(event.target===this)closeCallModal()">
@@ -246,6 +285,17 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
   </div>
 </section>
 
+<!-- INSTAGRAM -->
+<section id="instagram">
+  <div class="instagram-inner">
+    <div class="instagram-icon">&#128247;</div>
+    <div class="section-label" style="justify-content:center;margin-bottom:.6rem;">Follow Along</div>
+    <div class="instagram-handle">@excaliburcigarlounge</div>
+    <p class="instagram-desc">Follow us on Instagram for the latest arrivals, events, rare releases, and a behind-the-scenes look at San Diego's premier cigar destination.</p>
+    <a href="https://www.instagram.com/excaliburcigarlounge/" target="_blank" class="instagram-btn">&#128247; Follow on Instagram</a>
+  </div>
+</section>
+
 <footer>
   <div class="footer-logo">Excalibur Cigar &amp; Scotch Lounge</div>
   <div class="footer-tagline">California's Premier Cigar Destination &middot; San Diego</div>
@@ -254,6 +304,7 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
     <li><a href="#reviews">Reviews</a></li>
     <li><a href="#visit">Hours &amp; Location</a></li>
     <li><a href="menu.html">Menu</a></li>
+    <li><a href="https://www.instagram.com/excaliburcigarlounge/" target="_blank">Instagram</a></li>
     <li><a href="tel:8582771148">Call Us</a></li>
   </ul>
   <div class="footer-copy">&copy; 2025 Excalibur Cigar &amp; Scotch Lounge &middot; 8199 Clairemont Mesa Blvd, San Diego, CA</div>
@@ -272,6 +323,10 @@ document.querySelectorAll('.review-card,.feature-item,.info-card,.stat').forEach
 function openCallModal(){document.getElementById('callModal').classList.add('open');document.body.style.overflow='hidden';}
 function closeCallModal(){document.getElementById('callModal').classList.remove('open');document.body.style.overflow='';}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCallModal();});
+// Age gate
+function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');}
+function denySite(){document.getElementById('ageGate').innerHTML='<div class="age-gate" style="text-align:center"><div class="age-gate-logo">Excalibur</div><div class="age-gate-divider" style="margin:1.5rem auto"></div><p style="color:var(--cream-dim);font-size:.9rem;line-height:1.8">Sorry, you must be 21 or older to visit this site.<br>Please come back when you are of legal age.</p></div>';}
+if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';}
 </script>
 </body>
 </html>
