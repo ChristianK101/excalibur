@@ -27,7 +27,8 @@ nav.scrolled{background:rgba(18,9,2,0.97);border-bottom:1px solid rgba(201,168,7
 @keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 .call-modal-close{position:absolute;top:.8rem;right:1rem;background:none;border:none;color:var(--cream-dim);font-size:1.2rem;cursor:pointer;}
 .call-modal-close:hover{color:var(--gold);}
-.call-modal-label{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);margin-bottom:.6rem;}
+.call-modal-label{font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--gold);margin-bottom:.4rem;}
+.call-modal-title{font-size:.82rem;color:var(--cream-dim);margin-bottom:1rem;line-height:1.5;}
 .call-modal-number{font-family:'Cormorant Garamond',serif;font-size:2.2rem;font-weight:300;color:var(--cream);margin-bottom:1.4rem;}
 .call-modal-btn{display:block;width:100%;padding:.9rem;background:var(--gold);border:none;color:var(--brown-dark);font-family:'Montserrat',sans-serif;font-size:.72rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;text-decoration:none;cursor:pointer;transition:background .2s;margin-bottom:.6rem;}
 .call-modal-btn:hover{background:var(--gold-light);}
@@ -127,11 +128,12 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 </head>
 <body>
 
-<!-- CALL MODAL -->
+<!-- RESERVATION MODAL -->
 <div class="call-modal-overlay" id="callModal" onclick="if(event.target===this)closeCallModal()">
   <div class="call-modal">
     <button class="call-modal-close" onclick="closeCallModal()">&#10005;</button>
-    <div class="call-modal-label">Give Us a Call</div>
+    <div class="call-modal-label">Make a Reservation</div>
+    <div class="call-modal-title">Give us a call and we'll get you set up</div>
     <div class="call-modal-number">(858) 277-1148</div>
     <a href="tel:8582771148" class="call-modal-btn">Tap to Call</a>
     <button class="call-modal-dismiss" onclick="closeCallModal()">Dismiss</button>
@@ -146,7 +148,7 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
     <li><a href="#visit"><span>&#128336;</span> <span>Hours</span></a></li>
     <li><a href="#reviews"><span>&#11088;</span> <span>Reviews</span></a></li>
     <li><a href="https://maps.google.com/?q=8199+Clairemont+Mesa+Blvd+Ste+O,+San+Diego,+CA+92111" target="_blank"><span>&#128205;</span> <span>Directions</span></a></li>
-    <li><button onclick="openCallModal()"><span>&#128222;</span> <span>Call Us</span></button></li>
+    <li><button onclick="openCallModal()"><span>&#128197;</span> <span>Reservations</span></button></li>
   </ul>
 </nav>
 
