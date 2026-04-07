@@ -121,7 +121,7 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 .footer-links a:hover{color:var(--gold);}
 .footer-copy{font-size:.68rem;color:rgba(200,185,154,.35);}
 /* MOBILE */
-@media(max-width:900px){.nav-links a span,.nav-links button span{display:none;}.nav-links a,.nav-links button{padding:.45rem .7rem;}}
+@media(max-width:900px){.nav-links a span,.nav-links button span{display:none;}.nav-links a,.nav-links button{padding:.45rem .7rem;}.nav-links a.nav-cta span{display:inline;}.nav-links a.nav-cta{padding:.45rem 1rem;}}
 @media(max-width:700px){nav{padding:.9rem 1rem;}.nav-logo{font-size:1.1rem;}.about-grid,.visit-grid,.reviews-grid{grid-template-columns:1fr;gap:2.5rem;}.about-stats{grid-template-columns:1fr 1fr;}.reviews-header{flex-direction:column;align-items:flex-start;}}
 </style>
 </head>
@@ -142,11 +142,11 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 <nav id="navbar">
   <a href="#hero" class="nav-logo">Excalibur</a>
   <ul class="nav-links">
+    <li><a href="menu.html" class="nav-cta"><span>&#128209;</span> <span>Menu</span></a></li>
     <li><a href="#visit"><span>&#128336;</span> <span>Hours</span></a></li>
     <li><a href="#reviews"><span>&#11088;</span> <span>Reviews</span></a></li>
     <li><a href="https://maps.google.com/?q=8199+Clairemont+Mesa+Blvd+Ste+O,+San+Diego,+CA+92111" target="_blank"><span>&#128205;</span> <span>Directions</span></a></li>
     <li><button onclick="openCallModal()"><span>&#128222;</span> <span>Call Us</span></button></li>
-    <li><a href="menu.html" class="nav-cta"><span>&#128209;</span> <span>Menu</span></a></li>
   </ul>
 </nav>
 
