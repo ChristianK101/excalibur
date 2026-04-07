@@ -67,7 +67,16 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
 .modal-divider{width:40px;height:1px;background:var(--gold-dim);margin-bottom:1.2rem;}
 .modal-label{font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.4rem;}
 .modal-notes{font-size:.88rem;color:var(--cream-dim);line-height:1.8;font-style:italic;}
-@media(max-width:600px){nav{padding:.9rem 1.2rem;}.menu-hero{padding:2rem 1.2rem 1.5rem;}.tabs{gap:.4rem;padding:1rem;}.tab-btn{padding:.55rem 1.2rem;font-size:.6rem;}.tab-panel{padding:1.5rem 1rem;}.spirits-grid{grid-template-columns:1fr;}.cigars-grid{grid-template-columns:1fr;}}
+.coffee-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.2rem;margin-top:1rem;}
+.coffee-card{padding:1.4rem 1.6rem;border:1px solid rgba(201,168,76,.12);background:rgba(255,255,255,.025);display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;transition:border-color .25s,background .25s;}
+.coffee-card:hover{border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.04);}
+.coffee-info{}
+.coffee-name{font-family:'Cormorant Garamond',serif;font-size:1.15rem;font-weight:600;color:var(--cream);margin-bottom:.3rem;}
+.coffee-desc{font-size:.75rem;color:var(--cream-dim);line-height:1.6;font-style:italic;}
+.coffee-price{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:300;color:var(--gold);white-space:nowrap;flex-shrink:0;}
+.coffee-milk{margin-top:2rem;padding:1rem 1.4rem;border:1px solid rgba(201,168,76,.15);background:rgba(201,168,76,.05);font-size:.78rem;color:var(--cream-dim);text-align:center;letter-spacing:.05em;}
+.coffee-milk strong{color:var(--gold);}
+@media(max-width:600px){nav{padding:.9rem 1.2rem;}.menu-hero{padding:2rem 1.2rem 1.5rem;}.tabs{gap:.4rem;padding:1rem;}.tab-btn{padding:.55rem 1.2rem;font-size:.6rem;}.tab-panel{padding:1.5rem 1rem;}.spirits-grid{grid-template-columns:1fr;}.cigars-grid,.coffee-grid{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -82,6 +91,7 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('drinks',this)">&#127758; Drink Menu</button>
   <button class="tab-btn" onclick="switchTab('cigars',this)">&#127807; Cigar Menu</button>
+  <button class="tab-btn" onclick="switchTab('coffee',this)">&#9749; Coffee Menu</button>
 </div>
 <div id="panel-drinks" class="tab-panel active">
   <div class="search-wrap">
@@ -433,6 +443,18 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
 <div class="cigar-brand"><div class="cigar-brand-name">Perdomo</div><ul class="cigar-lines"><li>Reserve Cabinet Ltd. — Sun Grown 10th Anniversary</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Padron</div><ul class="cigar-lines"><li>1964 Anniversary Series</li></ul></div>
 </div>
+</div>
+<div id="panel-coffee" class="tab-panel">
+  <div class="coffee-grid">
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Black Coffee</div><div class="coffee-desc">Smooth and robust — freshly brewed daily</div></div><div class="coffee-price">$5<sup style="font-size:.7rem">00</sup></div></div>
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Single Espresso Shot</div><div class="coffee-desc">Concentrated pure flavor, rich and bold</div></div><div class="coffee-price">$4<sup style="font-size:.7rem">00</sup></div></div>
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Double Espresso Shot</div><div class="coffee-desc">Two shots of concentrated pure espresso</div></div><div class="coffee-price">$6<sup style="font-size:.7rem">00</sup></div></div>
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Cappuccino</div><div class="coffee-desc">Silky-smooth micro-foam with rich espresso</div></div><div class="coffee-price">$6<sup style="font-size:.7rem">00</sup></div></div>
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Iced Cappuccino</div><div class="coffee-desc">Chilled cappuccino over ice &mdash; cool and refreshing</div></div><div class="coffee-price">$6<sup style="font-size:.7rem">00</sup></div></div>
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Iced Latte</div><div class="coffee-desc">Creamy and refreshing over ice</div></div><div class="coffee-price">$6<sup style="font-size:.7rem">00</sup></div></div>
+    <div class="coffee-card"><div class="coffee-info"><div class="coffee-name">Latte Macchiato</div><div class="coffee-desc">Espresso layered through velvety steamed milk</div></div><div class="coffee-price">$6<sup style="font-size:.7rem">00</sup></div></div>
+  </div>
+  <div class="coffee-milk"><strong>Milk Options:</strong> &nbsp; Whole &nbsp;|&nbsp; Oat &nbsp;|&nbsp; Almond</div>
 </div>
 <div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
   <div class="modal">
