@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQ &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#C9A84C;--gold-light:#E4C97E;--gold-dim:#8B6914;--brown-dark:#1A0F06;--brown-mid:#2E1A0E;--brown-warm:#3D2410;--cream:#F5EDD8;--cream-dim:#C8B99A;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--brown-dark);color:var(--cream);font-family:'Montserrat',sans-serif;font-weight:300;min-height:100vh;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:1rem 2.5rem;background:rgba(18,9,2,0.97);border-bottom:1px solid rgba(201,168,76,0.2);}
+.nav-logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--gold);text-decoration:none;}
+.nav-back{font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-dim);text-decoration:none;transition:color .2s;}
+.nav-back:hover{color:var(--gold);}
+
+/* HERO */
+.faq-hero{background:linear-gradient(135deg,var(--brown-warm),var(--brown-mid));padding:3.5rem 2.5rem 2.5rem;text-align:center;border-bottom:1px solid rgba(201,168,76,.15);}
+.faq-hero-eyebrow{font-size:.62rem;letter-spacing:.35em;text-transform:uppercase;color:var(--gold);margin-bottom:.7rem;}
+.faq-hero-title{font-family:'Cormorant Garamond',serif;font-size:clamp(2rem,5vw,3rem);font-weight:300;color:var(--cream);margin-bottom:.8rem;}
+.faq-hero-title em{font-style:italic;color:var(--gold-light);}
+.faq-hero-sub{font-size:.78rem;color:var(--cream-dim);letter-spacing:.08em;line-height:1.8;}
+
+/* CATEGORY TABS */
+.cat-tabs{display:flex;justify-content:center;gap:.5rem;padding:1.5rem 2rem;background:var(--brown-mid);border-bottom:1px solid rgba(201,168,76,.1);flex-wrap:wrap;}
+.cat-tab{padding:.55rem 1.6rem;border:1px solid rgba(201,168,76,.3);background:transparent;color:var(--cream-dim);font-family:'Montserrat',sans-serif;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:all .25s;}
+.cat-tab.active{background:var(--gold);border-color:var(--gold);color:var(--brown-dark);font-weight:600;}
+.cat-tab:hover:not(.active){border-color:var(--gold);color:var(--gold);}
+
+/* MAIN */
+.faq-wrap{max-width:860px;margin:0 auto;padding:3rem 2rem 5rem;}
+
+/* SECTION */
+.faq-section{margin-bottom:3.5rem;}
+.faq-section-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--gold-light);border-bottom:1px solid rgba(201,168,76,.15);padding-bottom:.6rem;margin-bottom:1.4rem;letter-spacing:.04em;}
+
+/* ACCORDION */
+.faq-item{border:1px solid rgba(201,168,76,.12);background:rgba(255,255,255,.02);margin-bottom:.6rem;transition:border-color .25s;}
+.faq-item.open{border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.04);}
+.faq-question{width:100%;background:none;border:none;padding:1.15rem 1.4rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;cursor:pointer;text-align:left;}
+.faq-q-text{font-family:'Montserrat',sans-serif;font-size:.82rem;font-weight:500;color:var(--cream);letter-spacing:.03em;line-height:1.5;}
+.faq-item.open .faq-q-text{color:var(--gold-light);}
+.faq-icon{flex-shrink:0;width:20px;height:20px;border:1px solid rgba(201,168,76,.3);border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .3s;}
+.faq-icon svg{transition:transform .3s;fill:none;stroke:var(--gold-dim);stroke-width:2;stroke-linecap:round;}
+.faq-item.open .faq-icon{background:var(--gold);border-color:var(--gold);}
+.faq-item.open .faq-icon svg{stroke:var(--brown-dark);transform:rotate(45deg);}
+.faq-answer{max-height:0;overflow:hidden;transition:max-height .35s ease,padding .3s ease;}
+.faq-item.open .faq-answer{max-height:300px;}
+.faq-answer-inner{padding:0 1.4rem 1.3rem;font-size:.82rem;color:var(--cream-dim);line-height:1.85;}
+.faq-answer-inner strong{color:var(--gold);}
+
+/* CONTACT CTA */
+.faq-cta{margin-top:3rem;padding:2rem 2.5rem;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);text-align:center;}
+.faq-cta-label{font-size:.6rem;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem;}
+.faq-cta-text{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:300;color:var(--cream);margin-bottom:1.2rem;}
+.faq-cta-btn{display:inline-block;padding:.8rem 2.2rem;background:var(--gold);color:var(--brown-dark);font-family:'Montserrat',sans-serif;font-size:.68rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;text-decoration:none;transition:background .2s;border:none;cursor:pointer;}
+.faq-cta-btn:hover{background:var(--gold-light);}
+
+/* HIDDEN SECTION */
+.faq-section.hidden{display:none;}
+
+/* AGE GATE */
+#ageGate{position:fixed;inset:0;background:var(--brown-dark);z-index:9999;display:flex;align-items:center;justify-content:center;padding:2rem;}
+.age-gate{max-width:420px;width:100%;text-align:center;}
+.age-gate-logo{font-family:'Cormorant Garamond',serif;font-size:2.2rem;font-weight:600;color:var(--gold);letter-spacing:.1em;margin-bottom:.4rem;}
+.age-gate-divider{width:60px;height:1px;background:var(--gold-dim);margin:1rem auto 1.4rem;}
+.age-gate-eyebrow{font-size:.6rem;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:1.4rem;}
+.age-gate-text{font-size:.82rem;color:var(--cream-dim);line-height:1.8;margin-bottom:2rem;}
+.age-gate-btns{display:flex;gap:.8rem;justify-content:center;}
+.age-gate-yes,.age-gate-no{padding:.85rem 2rem;font-family:'Montserrat',sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;border:none;cursor:pointer;transition:all .2s;}
+.age-gate-yes{background:var(--gold);color:var(--brown-dark);}
+.age-gate-yes:hover{background:var(--gold-light);}
+.age-gate-no{background:transparent;border:1px solid rgba(201,168,76,.3);color:var(--cream-dim);}
+.age-gate-no:hover{border-color:var(--gold);color:var(--gold);}
+</style>
+</head>
+<body>
+
+<!-- AGE GATE -->
+<div id="ageGate">
+  <div class="age-gate">
+    <div class="age-gate-logo">Excalibur</div>
+    <div class="age-gate-divider"></div>
+    <div class="age-gate-eyebrow">Age Verification Required</div>
+    <p class="age-gate-text">You must be 21 years of age or older to enter this site.<br>Please confirm your age to continue.</p>
+    <div class="age-gate-btns">
+      <button class="age-gate-yes" onclick="enterSite()">I Am 21 or Older</button>
+      <button class="age-gate-no" onclick="denySite()">Under 21</button>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="index.html" class="nav-back">&#8592; Back to Home</a>
+</nav>
+
+<!-- HERO -->
+<div class="faq-hero">
+  <div class="faq-hero-eyebrow">Need to Know</div>
+  <h1 class="faq-hero-title">Frequently Asked <em>Questions</em></h1>
+  <p class="faq-hero-sub">Everything you need before your visit</p>
+</div>
+
+<!-- CATEGORY TABS -->
+<div class="cat-tabs">
+  <button class="cat-tab active" onclick="filterSection('all',this)">All</button>
+  <button class="cat-tab" onclick="filterSection('visit',this)">Your Visit</button>
+  <button class="cat-tab" onclick="filterSection('cigars',this)">Cigars & Spirits</button>
+  <button class="cat-tab" onclick="filterSection('events',this)">Events & Groups</button>
+</div>
+
+<!-- FAQ CONTENT -->
+<div class="faq-wrap">
+
+  <!-- YOUR VISIT -->
+  <div class="faq-section" data-cat="visit">
+    <div class="faq-section-title">Your Visit</div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Is there a cover charge to get in?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">No cover charge — walk right in and find a seat. The only fee that applies is a <strong>$20 cut fee per stick</strong> if you bring your own cigar from outside.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Do I need a reservation?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Walk-ins are always welcome. If you're coming with a <strong>group of more than 3</strong>, please give us a call ahead of time so we can make sure we have the right space ready for you.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">What's the dress code?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">We keep it <strong>casual</strong> — come as you are. Just relax, enjoy a smoke, and feel at home.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Is there parking available?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner"><strong>Free parking</strong> is available in the shopping center lot right outside. No hassle, no meters.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Do you have outdoor seating?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Yes — we have an <strong>outdoor patio</strong> available for seating. Perfect for enjoying a cigar under the San Diego sky.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Is the lounge wheelchair accessible?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Yes, Excalibur is <strong>fully wheelchair accessible</strong>. Everyone is welcome here.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">What is the age requirement?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">You must be <strong>21 or older</strong> to enter the lounge. Valid ID is required.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Can I bring food inside?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Yes — you're welcome to bring food inside. Just please <strong>keep it out of the humidor</strong> area.</div></div>
+    </div>
+
+  </div>
+
+  <!-- CIGARS & SPIRITS -->
+  <div class="faq-section" data-cat="cigars">
+    <div class="faq-section-title">Cigars &amp; Spirits</div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Can I bring my own cigar?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Absolutely — BYOC is welcome. There is a <strong>$20 cut fee per stick</strong> for outside cigars. Of course, we also carry an extensive selection in our humidor if you'd like to pick something up here.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Can I bring outside food or drinks?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Outside food and drinks are welcome — just please <strong>keep them out of the humidor</strong> area to protect the cigars.</div></div>
+    </div>
+
+  </div>
+
+  <!-- EVENTS & GROUPS -->
+  <div class="faq-section" data-cat="events">
+    <div class="faq-section-title">Events &amp; Groups</div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Can I book the lounge for a private event?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Yes — private events are available. <strong>Call us to book</strong> and we'll work out the details with you directly.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" onclick="toggleFaq(this)">
+        <span class="faq-q-text">I'm coming with a group — do I need to call ahead?</span>
+        <span class="faq-icon"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="5" y1="1" x2="5" y2="9"/><line x1="1" y1="5" x2="9" y2="5"/></svg></span>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">For groups of <strong>more than 3</strong>, we ask that you call ahead so we can make sure we have adequate space and seating ready for your party.</div></div>
+    </div>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="faq-cta">
+    <div class="faq-cta-label">Still Have Questions?</div>
+    <div class="faq-cta-text">Give us a call — we're happy to help.</div>
+    <a href="tel:+1" class="faq-cta-btn">Call Excalibur</a>
+  </div>
+
+</div>
+
+<script>
+// Age gate
+function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');}
+function denySite(){document.getElementById('ageGate').innerHTML='<div class="age-gate" style="text-align:center"><div class="age-gate-logo">Excalibur</div><div class="age-gate-divider" style="margin:1.5rem auto"></div><p style="color:var(--cream-dim);font-size:.9rem;line-height:1.8">Sorry, you must be 21 or older to visit this site.<br>Please come back when you are of legal age.</p></div>';}
+if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';}
+
+// Accordion
+function toggleFaq(btn){
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+  if(!isOpen) item.classList.add('open');
+}
+
+// Category filter
+function filterSection(cat, btn){
+  document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.faq-section').forEach(section => {
+    if(cat === 'all' || section.dataset.cat === cat){
+      section.classList.remove('hidden');
+    } else {
+      section.classList.add('hidden');
+    }
+  });
+}
+</script>
+</body>
+</html>
