@@ -78,7 +78,25 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
 .coffee-price{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:300;color:var(--gold);white-space:nowrap;flex-shrink:0;}
 .coffee-milk{margin-top:2rem;padding:1rem 1.4rem;border:1px solid rgba(201,168,76,.15);background:rgba(201,168,76,.05);font-size:.78rem;color:var(--cream-dim);text-align:center;letter-spacing:.05em;}
 .coffee-milk strong{color:var(--gold);}
-@media(max-width:600px){nav{padding:.9rem 1.2rem;}.menu-hero{padding:2rem 1.2rem 1.5rem;}.tabs{gap:.4rem;padding:1rem;}.tab-btn{padding:.55rem 1.2rem;font-size:.6rem;}.tab-panel{padding:1.5rem 1rem;}.spirits-grid{grid-template-columns:1fr;}.cigars-grid,.coffee-grid{grid-template-columns:1fr;}}
+/* BEER */
+.beer-filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:2rem;}
+.beer-filter-btn{padding:.45rem 1.1rem;border:1px solid rgba(201,168,76,.2);background:transparent;color:var(--cream-dim);font-family:'Montserrat',sans-serif;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .2s;border-radius:2px;}
+.beer-filter-btn.active{background:rgba(201,168,76,.15);border-color:var(--gold-dim);color:var(--gold);}
+.beer-filter-btn:hover:not(.active){border-color:var(--gold-dim);color:var(--cream);}
+.beer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.9rem;}
+.beer-card{padding:1.1rem 1.3rem;border:1px solid rgba(201,168,76,.1);background:rgba(255,255,255,.025);transition:border-color .25s,background .25s;}
+.beer-card:hover{border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.04);}
+.beer-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.4rem;}
+.beer-name{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:var(--cream);line-height:1.3;}
+.beer-style-badge{font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;padding:.2rem .6rem;border:1px solid;border-radius:2px;white-space:nowrap;flex-shrink:0;margin-left:.5rem;margin-top:.15rem;}
+.badge-ipa{color:#d4a843;border-color:rgba(212,168,67,.35);background:rgba(212,168,67,.08);}
+.badge-lager{color:#8ec4e8;border-color:rgba(142,196,232,.35);background:rgba(142,196,232,.08);}
+.badge-stout{color:#c4a882;border-color:rgba(196,168,130,.35);background:rgba(196,168,130,.08);}
+.badge-wheat{color:#c8b560;border-color:rgba(200,181,96,.35);background:rgba(200,181,96,.08);}
+.badge-ale{color:#b88c6a;border-color:rgba(184,140,106,.35);background:rgba(184,140,106,.08);}
+.badge-dipa{color:#e87c3e;border-color:rgba(232,124,62,.35);background:rgba(232,124,62,.08);}
+.beer-brewery{font-size:.72rem;color:var(--gold-dim);letter-spacing:.05em;}
+@media(max-width:600px){nav{padding:.9rem 1.2rem;}.menu-hero{padding:2rem 1.2rem 1.5rem;}.tabs{gap:.4rem;padding:1rem;}.tab-btn{padding:.55rem 1.2rem;font-size:.6rem;}.tab-panel{padding:1.5rem 1rem;}.spirits-grid{grid-template-columns:1fr;}.cigars-grid,.coffee-grid,.beer-grid{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -94,6 +112,7 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
   <button class="tab-btn active" onclick="switchTab('drinks',this)">&#127758; Drink Menu</button>
   <button class="tab-btn" onclick="switchTab('cigars',this)">&#127807; Cigar Menu</button>
   <button class="tab-btn" onclick="switchTab('coffee',this)">&#9749; Coffee Menu</button>
+  <button class="tab-btn" onclick="switchTab('beer',this)">&#127866; Beer Menu</button>
 </div>
 <div id="panel-drinks" class="tab-panel active">
   <div class="search-wrap">
@@ -459,6 +478,29 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
   </div>
   <div class="coffee-milk"><strong>Milk Options:</strong> &nbsp; Whole &nbsp;|&nbsp; Oat &nbsp;|&nbsp; Almond</div>
 </div>
+<div id="panel-beer" class="tab-panel">
+  <div class="cigar-note" style="margin-bottom:1.5rem;"><strong>Note:</strong> Our tap selection rotates and availability may vary. We cannot guarantee all beers are on tap at all times — ask your server for today's current selections.</div>
+  <div class="beer-filter-bar" id="beerFilterBar"></div>
+  <div class="beer-grid" id="beerGrid">
+    <div class="beer-card" data-style="IPA"><div class="beer-card-top"><div class="beer-name">The Pupil</div><span class="beer-style-badge badge-ipa">IPA</span></div><div class="beer-brewery">Societe Brewing Co.</div></div>
+    <div class="beer-card" data-style="IPA"><div class="beer-card-top"><div class="beer-name">Space Dust</div><span class="beer-style-badge badge-ipa">IPA</span></div><div class="beer-brewery">Elysian Brewing</div></div>
+    <div class="beer-card" data-style="DIPA"><div class="beer-card-top"><div class="beer-name">Mongo DIPA</div><span class="beer-style-badge badge-dipa">DIPA</span></div><div class="beer-brewery">Port Brewing</div></div>
+    <div class="beer-card" data-style="Wheat"><div class="beer-card-top"><div class="beer-name">Mango Cart</div><span class="beer-style-badge badge-wheat">Wheat</span></div><div class="beer-brewery">Golden Road Brewing</div></div>
+    <div class="beer-card" data-style="Lager"><div class="beer-card-top"><div class="beer-name">Kona Big Wave</div><span class="beer-style-badge badge-lager">Lager</span></div><div class="beer-brewery">Kona Brewing</div></div>
+    <div class="beer-card" data-style="Stout"><div class="beer-card-top"><div class="beer-name">Chocolate &amp; Churro Stout</div><span class="beer-style-badge badge-stout">Stout</span></div><div class="beer-brewery">Belching Beaver Brewing</div></div>
+    <div class="beer-card" data-style="Lager"><div class="beer-card-top"><div class="beer-name">Modelo Especial</div><span class="beer-style-badge badge-lager">Lager</span></div><div class="beer-brewery">Grupo Modelo</div></div>
+    <div class="beer-card" data-style="Stout"><div class="beer-card-top"><div class="beer-name">Peanut Butter Stout</div><span class="beer-style-badge badge-stout">Stout</span></div><div class="beer-brewery">Belching Beaver Brewing</div></div>
+    <div class="beer-card" data-style="IPA"><div class="beer-card-top"><div class="beer-name">The Harlot</div><span class="beer-style-badge badge-ipa">IPA</span></div><div class="beer-brewery">Societe Brewing Co.</div></div>
+    <div class="beer-card" data-style="IPA"><div class="beer-card-top"><div class="beer-name">Hazy '96</div><span class="beer-style-badge badge-ipa">Hazy IPA</span></div><div class="beer-brewery">Elysian Brewing</div></div>
+    <div class="beer-card" data-style="Ale"><div class="beer-card-top"><div class="beer-name">Brown Nut Ale</div><span class="beer-style-badge badge-ale">Brown Ale</span></div><div class="beer-brewery">AleSmith Brewing</div></div>
+    <div class="beer-card" data-style="Stout"><div class="beer-card-top"><div class="beer-name">Speedway Stout</div><span class="beer-style-badge badge-stout">Stout</span></div><div class="beer-brewery">AleSmith Brewing Co.</div></div>
+    <div class="beer-card" data-style="Lager"><div class="beer-card-top"><div class="beer-name">Stella Artois</div><span class="beer-style-badge badge-lager">Lager</span></div><div class="beer-brewery">AB InBev</div></div>
+    <div class="beer-card" data-style="Lager"><div class="beer-card-top"><div class="beer-name">.805</div><span class="beer-style-badge badge-lager">Blonde Ale</span></div><div class="beer-brewery">Firestone Brewing Co.</div></div>
+    <div class="beer-card" data-style="Lager"><div class="beer-card-top"><div class="beer-name">Buenaveza</div><span class="beer-style-badge badge-lager">Lager</span></div><div class="beer-brewery">Stone Brewing</div></div>
+    <div class="beer-card" data-style="Lager"><div class="beer-card-top"><div class="beer-name">.394</div><span class="beer-style-badge badge-lager">Pale Ale</span></div><div class="beer-brewery">AleSmith Brewing Co.</div></div>
+    <div class="beer-card" data-style="Wheat"><div class="beer-card-top"><div class="beer-name">The Orange Wit</div><span class="beer-style-badge badge-wheat">Wheat</span></div><div class="beer-brewery">Coronado Brewing Co.</div></div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">&#10005;</button>
@@ -538,6 +580,24 @@ function showModalData(name,notes,cat){
 function closeModal(){document.getElementById('modalOverlay').classList.remove('open');document.body.style.overflow='';}
 function closeModalOutside(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+// Beer filters
+(function(){
+  const styles=['All','IPA','DIPA','Stout','Lager','Wheat','Ale'];
+  const bar=document.getElementById('beerFilterBar');
+  styles.forEach(s=>{
+    const btn=document.createElement('button');
+    btn.className='beer-filter-btn'+(s==='All'?' active':'');
+    btn.textContent=s;
+    btn.onclick=()=>{
+      document.querySelectorAll('.beer-filter-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.beer-card').forEach(card=>{
+        card.style.display=(s==='All'||card.dataset.style===s||card.dataset.style.includes(s))?'block':'none';
+      });
+    };
+    bar.appendChild(btn);
+  });
+})();
 </script>
 </body>
 </html>
