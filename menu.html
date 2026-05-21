@@ -553,6 +553,13 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
     <div class="cn-history-title">&#128336; Cigars Checked This Session</div>
     <div class="cn-history-list" id="cigarHistoryList"></div>
   </div>
+
+  <!-- CUSTOMER DISCOVERED CIGARS -->
+  <div id="discoveredSection" style="display:none;margin-top:3rem;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:400;color:var(--gold-light);border-bottom:1px solid rgba(201,168,76,.15);padding-bottom:.6rem;margin-bottom:.5rem;">Customer Discovered</div>
+    <div style="font-size:.72rem;color:var(--cream-dim);margin-bottom:1.2rem;font-style:italic;">Cigars identified by guests scanning their bands — not yet in our official menu.</div>
+    <div class="cigars-grid" id="discoveredGrid"></div>
+  </div>
 </div>
 <!-- COFFEE PANEL -->
 <div id="panel-coffee" class="tab-panel">
@@ -674,7 +681,32 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeC
 (function(){const styles=['All','IPA','DIPA','Stout','Lager','Wheat','Ale'];const bar=document.getElementById('beerFilterBar');styles.forEach(s=>{const btn=document.createElement('button');btn.className='beer-filter-btn'+(s==='All'?' active':'');btn.textContent=s;btn.onclick=()=>{document.querySelectorAll('.beer-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.beer-card').forEach(card=>{card.style.display=(s==='All'||card.dataset.style===s||card.dataset.style.includes(s))?'block':'none';});};bar.appendChild(btn);});})();
 
 // ── CIGAR NOTES ──
+const WORKER_URL='https://excalibur-cigar-proxy.christiankalasho.workers.dev';
 let cigarSessionHistory=[];
+
+async function loadDiscoveredCigars(){
+  try {
+    const res = await fetch(WORKER_URL+'/cigars');
+    const cigars = await res.json();
+    if(cigars && cigars.length){
+      const section = document.getElementById('discoveredSection');
+      const grid = document.getElementById('discoveredGrid');
+      section.style.display = 'block';
+      grid.innerHTML = cigars.map(c => `
+        <div class="cigar-brand">
+          <div class="cigar-brand-name">${c.name}</div>
+          <ul class="cigar-lines">
+            ${c.origin ? `<li>${c.origin}</li>` : ''}
+            ${c.strength ? `<li>${c.strength.split('—')[0].trim()}</li>` : ''}
+            ${c.notes ? `<li style="font-style:italic">${c.notes.substring(0,80)}...</li>` : ''}
+          </ul>
+        </div>
+      `).join('');
+    }
+  } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', loadDiscoveredCigars);
 let currentPhotoDataUrl=null;
 function openCigarNotes(){document.getElementById('cnOverlay').classList.add('open');document.body.style.overflow='hidden';showCnState('cnStateInstruct');}
 function closeCigarNotes(){document.getElementById('cnOverlay').classList.remove('open');document.body.style.overflow='';}
@@ -682,8 +714,8 @@ function triggerCamera(){document.getElementById('cigarPhotoInput').click();}
 function showCnState(id){document.querySelectorAll('.cn-state').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 function resetToInstruct(){document.getElementById('cigarPhotoInput').value='';showCnState('cnStateInstruct');}
 async function handleCigarPhoto(input){if(!input.files||!input.files[0])return;const file=input.files[0];const reader=new FileReader();reader.onload=async(e)=>{currentPhotoDataUrl=e.target.result;showCnState('cnStateLoading');try{const result=await identifyCigar(currentPhotoDataUrl);displayCigarResult(result,currentPhotoDataUrl);}catch(err){document.getElementById('cnErrorText').textContent=err.message||"Couldn't identify the cigar. Make sure the band is clearly visible and try again.";showCnState('cnStateError');}};reader.readAsDataURL(file);}
-async function identifyCigar(dataUrl){const matches=dataUrl.match(/^data:(.+);base64,(.+)$/);if(!matches)throw new Error("Invalid image data.");const mediaType=matches[1];const base64Data=matches[2];const response=await fetch("https://excalibur-cigar-proxy.christiankalasho.workers.dev",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mediaType,data:base64Data}},{type:"text",text:`You are an expert cigar sommelier. Analyze this photo of a cigar band and identify the cigar. Return ONLY a JSON object (no markdown, no extra text) with these exact fields:\n{\n  "name": "Full cigar name including brand and line",\n  "origin": "Country of origin and region if known",\n  "notes": "Detailed tasting notes — describe flavor profile, aroma, and smoke characteristics in 2-3 sentences",\n  "construction": "Wrapper type, binder, and filler details",\n  "strength": "Strength level (Mild / Mild-Medium / Medium / Medium-Full / Full) and a brief scotch or spirit pairing suggestion",\n  "tags": ["tag1","tag2","tag3"],\n  "identified": true\n}\n\nIf you cannot identify the cigar from the band, return:\n{"identified": false, "error": "Brief reason why"}\n\nTags should be 2-4 short descriptors like: "Nicaraguan", "Maduro", "Spicy", "Full Body", "Earthy", "Creamy", etc.`}]}]})});if(!response.ok){const err=await response.json().catch(()=>({}));throw new Error(err.error?.message||"API request failed. Please try again.");}const data=await response.json();const text=data.content.map(b=>b.text||'').join('').trim();const clean=text.replace(/```json|```/g,'').trim();let parsed;try{parsed=JSON.parse(clean);}catch(e){throw new Error("Couldn't parse the response. Try again with a clearer photo of the band.");}if(!parsed.identified){throw new Error(parsed.error||"Couldn't identify this cigar. Make sure the band label is clearly visible.");}return parsed;}
-function displayCigarResult(result,photoUrl){document.getElementById('cnResultImg').src=photoUrl;document.getElementById('cnResultName').textContent=result.name||'Unknown Cigar';document.getElementById('cnResultOrigin').textContent=result.origin||'';document.getElementById('cnResultNotes').textContent=result.notes||'';document.getElementById('cnResultConstruction').textContent=result.construction||'';document.getElementById('cnResultStrength').textContent=result.strength||'';const tagsEl=document.getElementById('cnResultTags');tagsEl.innerHTML='';if(result.tags&&result.tags.length){result.tags.forEach(t=>{const tag=document.createElement('span');tag.className='cn-tag';tag.textContent=t;tagsEl.appendChild(tag);});}showCnState('cnStateResult');cigarSessionHistory.unshift({name:result.name,strength:result.strength,notes:result.notes,photo:photoUrl,full:result});updateHistoryUI();}
+async function identifyCigar(dataUrl){const matches=dataUrl.match(/^data:(.+);base64,(.+)$/);if(!matches)throw new Error("Invalid image data.");const mediaType=matches[1];const base64Data=matches[2];const response=await fetch(WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mediaType,data:base64Data}},{type:"text",text:`You are an expert cigar sommelier. Analyze this photo of a cigar band and identify the cigar. Return ONLY a JSON object (no markdown, no extra text) with these exact fields:\n{\n  "name": "Full cigar name including brand and line",\n  "origin": "Country of origin and region if known",\n  "notes": "Detailed tasting notes — describe flavor profile, aroma, and smoke characteristics in 2-3 sentences",\n  "construction": "Wrapper type, binder, and filler details",\n  "strength": "Strength level (Mild / Mild-Medium / Medium / Medium-Full / Full) and a brief scotch or spirit pairing suggestion",\n  "tags": ["tag1","tag2","tag3"],\n  "identified": true\n}\n\nIf you cannot identify the cigar from the band, return:\n{"identified": false, "error": "Brief reason why"}\n\nTags should be 2-4 short descriptors like: "Nicaraguan", "Maduro", "Spicy", "Full Body", "Earthy", "Creamy", etc.`}]}]})});if(!response.ok){const err=await response.json().catch(()=>({}));throw new Error(err.error?.message||"API request failed. Please try again.");}const data=await response.json();const text=data.content.map(b=>b.text||'').join('').trim();const clean=text.replace(/```json|```/g,'').trim();let parsed;try{parsed=JSON.parse(clean);}catch(e){throw new Error("Couldn't parse the response. Try again with a clearer photo of the band.");}if(!parsed.identified){throw new Error(parsed.error||"Couldn't identify this cigar. Make sure the band label is clearly visible.");}parsed._newCigarAdded=data._newCigarAdded;return parsed;}
+function displayCigarResult(result,photoUrl){document.getElementById('cnResultImg').src=photoUrl;document.getElementById('cnResultName').textContent=result.name||'Unknown Cigar';document.getElementById('cnResultOrigin').textContent=result.origin||'';document.getElementById('cnResultNotes').textContent=result.notes||'';document.getElementById('cnResultConstruction').textContent=result.construction||'';document.getElementById('cnResultStrength').textContent=result.strength||'';const tagsEl=document.getElementById('cnResultTags');tagsEl.innerHTML='';if(result.tags&&result.tags.length){result.tags.forEach(t=>{const tag=document.createElement('span');tag.className='cn-tag';tag.textContent=t;tagsEl.appendChild(tag);});}showCnState('cnStateResult');cigarSessionHistory.unshift({name:result.name,strength:result.strength,notes:result.notes,photo:photoUrl,full:result});updateHistoryUI();if(data._newCigarAdded)loadDiscoveredCigars();}
 function updateHistoryUI(){if(!cigarSessionHistory.length)return;const section=document.getElementById('cigarHistorySection');section.style.display='block';const list=document.getElementById('cigarHistoryList');list.innerHTML=cigarSessionHistory.map((item,i)=>`<div class="cn-history-item" onclick="viewHistoryItem(${i})"><div><div class="cn-history-item-name">${item.name}</div><div class="cn-history-item-strength">${item.strength?item.strength.split('—')[0].trim():''}</div></div><span class="cn-history-arrow">&#8250;</span></div>`).join('');}
 function viewHistoryItem(index){const item=cigarSessionHistory[index];displayCigarResult(item.full,item.photo);openCigarNotes();}
 </script>
