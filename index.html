@@ -196,6 +196,21 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 /* MOBILE */
 @media(max-width:900px){.nav-links a span,.nav-links button span{display:none;}.nav-links a,.nav-links button{padding:.45rem .7rem;}.nav-links a.nav-cta span,.nav-links a.nav-faq span{display:inline;}.nav-links a.nav-cta,.nav-links a.nav-faq{padding:.45rem 1rem;}}
 @media(max-width:700px){nav{padding:.9rem 1rem;}.nav-logo{font-size:1.1rem;}.about-grid,.visit-grid,.reviews-grid{grid-template-columns:1fr;gap:2.5rem;}.about-stats{grid-template-columns:1fr 1fr;}.reviews-header{flex-direction:column;align-items:flex-start;}}
+/* WORLD CUP BANNER */
+.wc-banner{position:fixed;top:0;left:0;right:0;z-index:99;background:linear-gradient(90deg,#0a3d0a,#1a6b1a,#0a3d0a);border-bottom:1px solid rgba(201,168,76,.5);padding:.55rem 2rem;display:none;align-items:center;justify-content:center;gap:1rem;cursor:pointer;transition:background .3s;}
+.wc-banner:hover{background:linear-gradient(90deg,#0d4f0d,#228b22,#0d4f0d);}
+.wc-banner-icon{font-size:1.1rem;flex-shrink:0;}
+.wc-banner-text{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#fff;font-weight:600;}
+.wc-banner-text em{color:var(--gold);font-style:normal;}
+.wc-banner-cta{font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(201,168,76,.5);padding:.25rem .7rem;white-space:nowrap;}
+.wc-banner-close{position:absolute;right:1rem;background:none;border:none;color:rgba(255,255,255,.4);font-size:1rem;cursor:pointer;padding:.2rem .4rem;line-height:1;}
+.wc-banner-close:hover{color:#fff;}
+.wc-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:800;display:none;align-items:center;justify-content:center;padding:1rem;}
+.wc-modal-overlay.open{display:flex;}
+.wc-modal{position:relative;max-width:480px;width:100%;animation:slideUp .3s ease;}
+.wc-modal img{width:100%;display:block;border:2px solid rgba(201,168,76,.3);}
+.wc-modal-close{position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);border:1px solid rgba(201,168,76,.4);color:var(--gold);font-size:1rem;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:2px;}
+.wc-modal-close:hover{background:rgba(201,168,76,.2);}
 </style>
 </head>
 <body>
@@ -253,6 +268,22 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
     <li><a href="#gallery"><span>&#128247;</span> <span>Photos</span></a></li>
   </ul>
 </nav>
+
+<!-- WORLD CUP BANNER -->
+<div class="wc-banner" id="wcBanner" onclick="openWcModal()">
+  <span class="wc-banner-icon">⚽</span>
+  <span class="wc-banner-text">World Cup 2026 &nbsp;·&nbsp; <em>Watch Every Match Here</em> &nbsp;·&nbsp; June 11 – July 19</span>
+  <span class="wc-banner-cta">See Details</span>
+  <button class="wc-banner-close" onclick="event.stopPropagation();closeWcBanner()">&#10005;</button>
+</div>
+
+<!-- WORLD CUP MODAL -->
+<div class="wc-modal-overlay" id="wcModal" onclick="if(event.target===this)closeWcModal()">
+  <div class="wc-modal">
+    <button class="wc-modal-close" onclick="closeWcModal()">&#10005;</button>
+    <img src="worldcup-flyer.webp" alt="World Cup Watch Party at Excalibur">
+  </div>
+</div>
 
 <!-- HERO -->
 <section id="hero">
@@ -439,14 +470,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLightbox();if(e
 function openPromoModal(){document.getElementById('promoModal').classList.add('open');document.body.style.overflow='hidden';}
 function closePromoModal(){document.getElementById('promoModal').classList.remove('open');document.body.style.overflow='';}
 function closeBanner(){document.getElementById('promoBanner').style.display='none';}
+function openWcModal(){document.getElementById('wcModal').classList.add('open');document.body.style.overflow='hidden';}
+function closeWcModal(){document.getElementById('wcModal').classList.remove('open');document.body.style.overflow='';}
+function closeWcBanner(){document.getElementById('wcBanner').style.display='none';}
 
 function openCallModal(){document.getElementById('callModal').classList.add('open');document.body.style.overflow='hidden';}
 function closeCallModal(){document.getElementById('callModal').classList.remove('open');document.body.style.overflow='';}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCallModal();});
 // Age gate
-function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');}
+function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');document.getElementById('wcBanner').style.display='flex';}
 function denySite(){document.getElementById('ageGate').innerHTML='<div class="age-gate" style="text-align:center"><div class="age-gate-logo">Excalibur</div><div class="age-gate-divider" style="margin:1.5rem auto"></div><p style="color:var(--cream-dim);font-size:.9rem;line-height:1.8">Sorry, you must be 21 or older to visit this site.<br>Please come back when you are of legal age.</p></div>';}
-if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';}
+if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';document.getElementById('wcBanner').style.display='flex';}
 </script>
 </body>
 </html>
