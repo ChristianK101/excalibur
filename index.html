@@ -12,7 +12,8 @@
 html{scroll-behavior:smooth;}
 body{background:var(--brown-dark);color:var(--cream);font-family:'Montserrat',sans-serif;font-weight:300;overflow-x:hidden;}
 /* NAV */
-nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:1rem 2.5rem;background:linear-gradient(to bottom,rgba(20,10,3,0.95),rgba(20,10,3,0));transition:background 0.4s;}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:1rem 2.5rem;background:linear-gradient(to bottom,rgba(20,10,3,0.95),rgba(20,10,3,0));transition:background 0.4s,top 0.3s;}
+body.wc-active nav{top:38px;}
 nav.scrolled{background:rgba(18,9,2,0.97);border-bottom:1px solid rgba(201,168,76,0.2);}
 .nav-logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--gold);letter-spacing:.08em;text-decoration:none;white-space:nowrap;}
 .nav-links{display:flex;gap:.5rem;list-style:none;flex-wrap:wrap;justify-content:flex-end;}
@@ -197,7 +198,7 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 @media(max-width:900px){.nav-links a span,.nav-links button span{display:none;}.nav-links a,.nav-links button{padding:.45rem .7rem;}.nav-links a.nav-cta span,.nav-links a.nav-faq span{display:inline;}.nav-links a.nav-cta,.nav-links a.nav-faq{padding:.45rem 1rem;}}
 @media(max-width:700px){nav{padding:.9rem 1rem;}.nav-logo{font-size:1.1rem;}.about-grid,.visit-grid,.reviews-grid{grid-template-columns:1fr;gap:2.5rem;}.about-stats{grid-template-columns:1fr 1fr;}.reviews-header{flex-direction:column;align-items:flex-start;}}
 /* WORLD CUP BANNER */
-.wc-banner{position:fixed;top:0;left:0;right:0;z-index:99;background:linear-gradient(90deg,#0a3d0a,#1a6b1a,#0a3d0a);border-bottom:1px solid rgba(201,168,76,.5);padding:.55rem 2rem;display:none;align-items:center;justify-content:center;gap:1rem;cursor:pointer;transition:background .3s;}
+.wc-banner{position:fixed;top:0;left:0;right:0;z-index:101;background:linear-gradient(90deg,#0a3d0a,#1a6b1a,#0a3d0a);border-bottom:1px solid rgba(201,168,76,.5);padding:.55rem 2rem;display:none;align-items:center;justify-content:center;gap:1rem;cursor:pointer;transition:background .3s;}
 .wc-banner:hover{background:linear-gradient(90deg,#0d4f0d,#228b22,#0d4f0d);}
 .wc-banner-icon{font-size:1.1rem;flex-shrink:0;}
 .wc-banner-text{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:#fff;font-weight:600;}
@@ -472,15 +473,16 @@ function closePromoModal(){document.getElementById('promoModal').classList.remov
 function closeBanner(){document.getElementById('promoBanner').style.display='none';}
 function openWcModal(){document.getElementById('wcModal').classList.add('open');document.body.style.overflow='hidden';}
 function closeWcModal(){document.getElementById('wcModal').classList.remove('open');document.body.style.overflow='';}
-function closeWcBanner(){document.getElementById('wcBanner').style.display='none';}
+function showWcBanner(){if(new Date()>new Date('2026-07-19T23:59:59'))return;document.getElementById('wcBanner').style.display='flex';document.body.classList.add('wc-active');}
+function closeWcBanner(){document.getElementById('wcBanner').style.display='none';document.body.classList.remove('wc-active');}
 
 function openCallModal(){document.getElementById('callModal').classList.add('open');document.body.style.overflow='hidden';}
 function closeCallModal(){document.getElementById('callModal').classList.remove('open');document.body.style.overflow='';}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCallModal();});
 // Age gate
-function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');document.getElementById('wcBanner').style.display='flex';}
+function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');showWcBanner();}
 function denySite(){document.getElementById('ageGate').innerHTML='<div class="age-gate" style="text-align:center"><div class="age-gate-logo">Excalibur</div><div class="age-gate-divider" style="margin:1.5rem auto"></div><p style="color:var(--cream-dim);font-size:.9rem;line-height:1.8">Sorry, you must be 21 or older to visit this site.<br>Please come back when you are of legal age.</p></div>';}
-if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';document.getElementById('wcBanner').style.display='flex';}
+if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';showWcBanner();}
 </script>
 </body>
 </html>
