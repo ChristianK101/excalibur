@@ -212,6 +212,19 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 .wc-modal img{width:100%;display:block;border:2px solid rgba(201,168,76,.3);}
 .wc-modal-close{position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);border:1px solid rgba(201,168,76,.4);color:var(--gold);font-size:1rem;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:2px;}
 .wc-modal-close:hover{background:rgba(201,168,76,.2);}
+/* COMMUNITY PARTNER FLYER THUMBNAIL */
+.cp-thumb{position:fixed;top:95px;left:20px;z-index:90;width:76px;display:none;flex-direction:column;align-items:center;animation:slideUp .3s ease;}
+.cp-thumb-btn{position:relative;width:76px;height:76px;padding:0;border:1px solid rgba(201,168,76,.5);background:var(--brown-mid);cursor:pointer;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.4);}
+.cp-thumb-btn img{width:100%;height:100%;object-fit:cover;display:block;}
+.cp-thumb-close{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:var(--brown-mid);border:1px solid rgba(201,168,76,.5);color:var(--cream-dim);font-size:.6rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;}
+.cp-thumb-close:hover{color:#fff;border-color:rgba(201,168,76,.8);}
+@media(max-width:700px){.cp-thumb{top:80px;left:12px;width:56px;}.cp-thumb-btn{width:56px;height:56px;}}
+.cp-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:800;display:none;align-items:center;justify-content:center;padding:1rem;}
+.cp-modal-overlay.open{display:flex;}
+.cp-modal{position:relative;max-width:420px;width:100%;animation:slideUp .3s ease;}
+.cp-modal img{width:100%;display:block;border:2px solid rgba(201,168,76,.3);}
+.cp-modal-close{position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.7);border:1px solid rgba(201,168,76,.4);color:var(--gold);font-size:1rem;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:2px;}
+.cp-modal-close:hover{background:rgba(201,168,76,.2);}
 </style>
 </head>
 <body>
@@ -283,6 +296,22 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
   <div class="wc-modal">
     <button class="wc-modal-close" onclick="closeWcModal()">&#10005;</button>
     <img src="worldcup-flyer.webp" alt="World Cup Watch Party at Excalibur">
+  </div>
+</div>
+
+<!-- COMMUNITY PARTNER FLYER THUMBNAIL -->
+<div class="cp-thumb" id="cpThumb">
+  <button class="cp-thumb-btn" onclick="openCpModal()" aria-label="View Community Partner flyer">
+    <img src="community-partner-flyer.jpg" alt="Community Partner">
+    <span class="cp-thumb-close" onclick="event.stopPropagation();closeCpThumb()" aria-label="Dismiss">&#10005;</span>
+  </button>
+</div>
+
+<!-- COMMUNITY PARTNER FLYER MODAL -->
+<div class="cp-modal-overlay" id="cpModal" onclick="if(event.target===this)closeCpModal()">
+  <div class="cp-modal">
+    <button class="cp-modal-close" onclick="closeCpModal()">&#10005;</button>
+    <img src="community-partner-flyer.jpg" alt="Community Partner - Thank You Tom Kalasho and Excalibur Cigar & Scotch Lounge">
   </div>
 </div>
 
@@ -475,14 +504,18 @@ function openWcModal(){document.getElementById('wcModal').classList.add('open');
 function closeWcModal(){document.getElementById('wcModal').classList.remove('open');document.body.style.overflow='';}
 function showWcBanner(){if(new Date()>new Date('2026-07-19T23:59:59'))return;document.getElementById('wcBanner').style.display='flex';document.body.classList.add('wc-active');}
 function closeWcBanner(){document.getElementById('wcBanner').style.display='none';document.body.classList.remove('wc-active');}
+function showCpThumb(){if(localStorage.getItem('cpThumbDismissed'))return;document.getElementById('cpThumb').style.display='flex';}
+function closeCpThumb(){document.getElementById('cpThumb').style.display='none';localStorage.setItem('cpThumbDismissed','1');}
+function openCpModal(){document.getElementById('cpModal').classList.add('open');document.body.style.overflow='hidden';}
+function closeCpModal(){document.getElementById('cpModal').classList.remove('open');document.body.style.overflow='';}
 
 function openCallModal(){document.getElementById('callModal').classList.add('open');document.body.style.overflow='hidden';}
 function closeCallModal(){document.getElementById('callModal').classList.remove('open');document.body.style.overflow='';}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCallModal();});
 // Age gate
-function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');showWcBanner();}
+function enterSite(){document.getElementById('ageGate').style.display='none';sessionStorage.setItem('ageVerified','1');showWcBanner();showCpThumb();}
 function denySite(){document.getElementById('ageGate').innerHTML='<div class="age-gate" style="text-align:center"><div class="age-gate-logo">Excalibur</div><div class="age-gate-divider" style="margin:1.5rem auto"></div><p style="color:var(--cream-dim);font-size:.9rem;line-height:1.8">Sorry, you must be 21 or older to visit this site.<br>Please come back when you are of legal age.</p></div>';}
-if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';showWcBanner();}
+if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';showWcBanner();showCpThumb();}
 </script>
 </body>
 </html>
