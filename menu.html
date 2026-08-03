@@ -96,6 +96,16 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
 .beer-brewery{font-size:.72rem;color:var(--gold-dim);letter-spacing:.05em;}
 
 /* ── CIGAR NOTES FEATURE ── */
+/* ── CIGAR SEARCH ── */
+.cigar-search-wrap{position:relative;margin-bottom:1rem;}
+.cigar-search-meta{display:none;font-size:.65rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:1rem;}
+.cigar-search-meta.empty{color:#f0a0a0;}
+.cigar-call-note{display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;padding:1.1rem 1.4rem;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.22);}
+.cigar-call-note-text{font-size:.78rem;color:var(--cream-dim);line-height:1.7;}
+.cigar-call-note-text strong{color:var(--gold);}
+.cigar-call-note.show{display:flex;}
+.btn-call-cigar{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.4rem;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--brown-dark);text-decoration:none;font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;white-space:nowrap;transition:all .25s;}
+.btn-call-cigar:hover{background:linear-gradient(135deg,var(--gold-light),var(--gold));transform:translateY(-1px);box-shadow:0 4px 16px rgba(201,168,76,.25);}
 .cigar-notes-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;padding:1.1rem 1.4rem;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.18);}
 .cigar-notes-bar-text{font-size:.72rem;color:var(--cream-dim);letter-spacing:.04em;}
 .btn-check-cigar{display:inline-flex;align-items:center;gap:.55rem;padding:.7rem 1.5rem;background:linear-gradient(135deg,var(--gold),var(--gold-dim));border:none;color:var(--brown-dark);font-family:'Montserrat',sans-serif;font-size:.68rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:all .25s;white-space:nowrap;}
@@ -168,6 +178,8 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
   .cn-body{padding:1.2rem 1.2rem 1.5rem;}
   .cigar-notes-bar{flex-direction:column;align-items:flex-start;}
   .btn-check-cigar{width:100%;justify-content:center;}
+  .cigar-call-note{flex-direction:column;align-items:flex-start;}
+  .btn-call-cigar{width:100%;justify-content:center;}
 }
 </style>
 </head>
@@ -523,6 +535,17 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
   </div>
   <input type="file" id="cigarPhotoInput" accept="image/*" capture="environment" onchange="handleCigarPhoto(this)">
 
+  <!-- CIGAR SEARCH -->
+  <div class="cigar-search-wrap">
+    <span class="search-icon">&#128269;</span>
+    <input type="text" class="search-input" id="cigarSearchInput" placeholder="Search a cigar by brand or line..." oninput="handleCigarSearch(this.value)" autocomplete="off">
+  </div>
+  <div class="cigar-search-meta" id="cigarSearchMeta"></div>
+  <div class="cigar-call-note" id="cigarCallNote">
+    <div class="cigar-call-note-text">Don&rsquo;t see what you&rsquo;re looking for? <strong>Not every cigar we carry is on this menu.</strong> Our walk-in humidor holds thousands more &mdash; give us a call and we&rsquo;ll check the shelf for you.</div>
+    <a href="tel:8582771148" class="btn-call-cigar">&#128222; &nbsp;(858) 277-1148</a>
+  </div>
+
   <div class="cigars-grid">
 <div class="cigar-brand"><div class="cigar-brand-name">Diamond Crown (J.C. Newman)</div><ul class="cigar-lines"><li>Maximus</li><li>Black Diamond</li><li>Julius Caesar</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Arturo Fuente</div><ul class="cigar-lines"><li>Don Carlos — Personal Reserve / Edicion de Aniversario</li><li>Fuente Fuente OpusX</li><li>Casa Cuba — Flor Fina</li></ul></div>
@@ -714,8 +737,43 @@ function closeModalOutside(e){if(e.target===document.getElementById('modalOverla
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeCigarNotes();}});
 (function(){const styles=['All','IPA','DIPA','Stout','Lager','Wheat','Ale'];const bar=document.getElementById('beerFilterBar');styles.forEach(s=>{const btn=document.createElement('button');btn.className='beer-filter-btn'+(s==='All'?' active':'');btn.textContent=s;btn.onclick=()=>{document.querySelectorAll('.beer-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.beer-card').forEach(card=>{card.style.display=(s==='All'||card.dataset.style===s||card.dataset.style.includes(s))?'block':'none';});};bar.appendChild(btn);});})();
 
+// ── CIGAR SEARCH ──
+function handleCigarSearch(val){
+  const q=val.trim().toLowerCase();
+  const meta=document.getElementById('cigarSearchMeta');
+  const note=document.getElementById('cigarCallNote');
+  const cards=document.querySelectorAll('#panel-cigars .cigars-grid .cigar-brand');
+  const discovered=document.getElementById('discoveredSection');
+  if(!q){
+    cards.forEach(card=>{card.style.display='';card.querySelectorAll('.cigar-lines li').forEach(li=>li.style.display='');});
+    discovered.style.display=discoveredHasCigars?'block':'none';
+    meta.style.display='none';
+    note.classList.remove('show');
+    return;
+  }
+  let brandsShown=0,discoveredShown=0;
+  cards.forEach(card=>{
+    const brandMatch=card.querySelector('.cigar-brand-name').textContent.toLowerCase().includes(q);
+    let lineMatches=0;
+    card.querySelectorAll('.cigar-lines li').forEach(li=>{
+      const hit=brandMatch||li.textContent.toLowerCase().includes(q);
+      li.style.display=hit?'':'none';
+      if(hit)lineMatches++;
+    });
+    const show=brandMatch||lineMatches>0;
+    card.style.display=show?'':'none';
+    if(show){brandsShown++;if(card.closest('#discoveredGrid'))discoveredShown++;}
+  });
+  discovered.style.display=(discoveredHasCigars&&discoveredShown)?'block':'none';
+  meta.textContent=brandsShown?brandsShown+' brand'+(brandsShown!==1?'s':'')+' matching "'+val.trim()+'"':'No match for "'+val.trim()+'" on our menu';
+  meta.className='cigar-search-meta'+(brandsShown?'':' empty');
+  meta.style.display='block';
+  note.classList.add('show');
+}
+
 // ── CIGAR NOTES ──
 const WORKER_URL='https://excalibur-cigar-proxy.christiankalasho.workers.dev';
+let discoveredHasCigars=false;
 let cigarSessionHistory=[];
 
 async function loadDiscoveredCigars(){
@@ -725,6 +783,7 @@ async function loadDiscoveredCigars(){
     if(cigars && cigars.length){
       const section = document.getElementById('discoveredSection');
       const grid = document.getElementById('discoveredGrid');
+      discoveredHasCigars = true;
       section.style.display = 'block';
       grid.innerHTML = cigars.map(c => `
         <div class="cigar-brand">
@@ -736,6 +795,7 @@ async function loadDiscoveredCigars(){
           </ul>
         </div>
       `).join('');
+      handleCigarSearch(document.getElementById('cigarSearchInput').value);
     }
   } catch(e) {}
 }
