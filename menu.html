@@ -568,7 +568,7 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
 <div class="cigar-brand"><div class="cigar-brand-name">JFR</div><ul class="cigar-lines"><li>Lunatic Nicaragua — El Loquito 4.75x60 Corojo Maduro</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Aganorsa Leaf</div><ul class="cigar-lines"><li>La Validacion Maduro</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Rocky Patel</div><ul class="cigar-lines"><li>The Edge 20th Anniversary</li></ul></div>
-<div class="cigar-brand"><div class="cigar-brand-name">My Father Cigars</div><ul class="cigar-lines"><li>Flor de las Antillas — Sun Grown</li></ul></div>
+<div class="cigar-brand"><div class="cigar-brand-name">My Father Cigars</div><ul class="cigar-lines"><li>Flor de las Antillas — Sun Grown</li><li>La Antig&uuml;edad — Toro Gordo 6x60</li><li>La Antig&uuml;edad — Super Toro 7x56</li><li>Jaime Garc&iacute;a Reserva Especial — Toro 6x54</li><li>Jaime Garc&iacute;a Reserva Especial — Toro Gordo 6x60 Connecticut</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Olmec Handmade Cigars</div><ul class="cigar-lines"><li>Handcrafted selections</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Foundation Cigar Co.</div><ul class="cigar-lines"><li>The Tabernacle</li><li>The Wise Man</li></ul></div>
 <div class="cigar-brand"><div class="cigar-brand-name">Cavalier Geneve</div><ul class="cigar-lines"><li>Toro 6x52</li></ul></div>
@@ -738,8 +738,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeC
 (function(){const styles=['All','IPA','DIPA','Stout','Lager','Wheat','Ale'];const bar=document.getElementById('beerFilterBar');styles.forEach(s=>{const btn=document.createElement('button');btn.className='beer-filter-btn'+(s==='All'?' active':'');btn.textContent=s;btn.onclick=()=>{document.querySelectorAll('.beer-filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.beer-card').forEach(card=>{card.style.display=(s==='All'||card.dataset.style===s||card.dataset.style.includes(s))?'block':'none';});};bar.appendChild(btn);});})();
 
 // ── CIGAR SEARCH ──
+const normCigar=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 function handleCigarSearch(val){
-  const q=val.trim().toLowerCase();
+  const q=normCigar(val.trim());
   const meta=document.getElementById('cigarSearchMeta');
   const note=document.getElementById('cigarCallNote');
   const cards=document.querySelectorAll('#panel-cigars .cigars-grid .cigar-brand');
@@ -753,10 +754,10 @@ function handleCigarSearch(val){
   }
   let brandsShown=0,discoveredShown=0;
   cards.forEach(card=>{
-    const brandMatch=card.querySelector('.cigar-brand-name').textContent.toLowerCase().includes(q);
+    const brandMatch=normCigar(card.querySelector('.cigar-brand-name').textContent).includes(q);
     let lineMatches=0;
     card.querySelectorAll('.cigar-lines li').forEach(li=>{
-      const hit=brandMatch||li.textContent.toLowerCase().includes(q);
+      const hit=brandMatch||normCigar(li.textContent).includes(q);
       li.style.display=hit?'':'none';
       if(hit)lineMatches++;
     });
