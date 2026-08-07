@@ -222,12 +222,28 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     }
 
+    // Health check: confirms the D1 binding and tables without touching auth.
+    if (url.pathname === '/auth/health'){
+      if (!env.DB) return json({ ok: false, error: 'No D1 binding named DB on this deployment.' }, 500, request, env);
+      try {
+        const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();
+        return json({ ok: true, users: r.n, ownerEmailSet: !!env.OWNER_EMAIL, origins: env.ALLOWED_ORIGINS || null }, 200, request, env);
+      } catch (err){
+        return json({ ok: false, error: 'Database error: ' + (err && err.message) }, 500, request, env);
+      }
+    }
+
+    if (!env.DB){
+      return json({ error: 'Accounts are not configured yet (no database binding).' }, 500, request, env);
+    }
+
     try {
       if (url.pathname === '/auth/register' && request.method === 'POST') return await handleRegister(request, env);
       if (url.pathname === '/auth/login'    && request.method === 'POST') return await handleLogin(request, env);
       if (url.pathname === '/auth/logout'   && request.method === 'POST') return await handleLogout(request, env);
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
     } catch (err){
+      console.error('auth error', url.pathname, err && err.stack || err);
       return json({ error: 'Server error. Please try again.' }, 500, request, env);
     }
 
