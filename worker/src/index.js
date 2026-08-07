@@ -247,12 +247,9 @@ export default {
       if (url.pathname === '/auth/logout'   && request.method === 'POST') return await handleLogout(request, env);
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
     } catch (err){
+      // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);
-      // TEMPORARY: surfaces the cause while we get accounts working.
-      // Remove `detail` once signup succeeds.
-      return json({
-        error: 'Server error: ' + String(err && err.message || err).slice(0, 200)
-      }, 500, request, env);
+      return json({ error: 'Server error. Please try again.' }, 500, request, env);
     }
 
     return json({ error: 'Not found.' }, 404, request, env);
