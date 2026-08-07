@@ -182,11 +182,13 @@ nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between
   .btn-call-cigar{width:100%;justify-content:center;}
 }
 </style>
+<link rel="stylesheet" href="auth.css">
 </head>
 <body>
 <nav>
   <a href="index.html" class="nav-back">&#8592; Back</a>
   <a href="index.html" class="nav-logo">Excalibur</a>
+  <div class="auth-nav"></div>
 </nav>
 <div class="menu-hero">
   <div class="menu-hero-eyebrow">Excalibur Cigar &amp; Scotch Lounge</div>
@@ -816,5 +818,6 @@ const tagsEl=document.getElementById('cnResultTags');tagsEl.innerHTML='';if(resu
 function updateHistoryUI(){if(!cigarSessionHistory.length)return;const section=document.getElementById('cigarHistorySection');section.style.display='block';const list=document.getElementById('cigarHistoryList');list.innerHTML=cigarSessionHistory.map((item,i)=>`<div class="cn-history-item" onclick="viewHistoryItem(${i})"><div><div class="cn-history-item-name">${item.name}</div><div class="cn-history-item-strength">${item.strength?item.strength.split('—')[0].trim():''}</div></div><span class="cn-history-arrow">&#8250;</span></div>`).join('');}
 function viewHistoryItem(index){const item=cigarSessionHistory[index];displayCigarResult(item.full,item.photo);openCigarNotes();}
 </script>
+<script src="auth.js"></script>
 </body>
 </html>

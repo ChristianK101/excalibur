@@ -1,0 +1,41 @@
+/* ── ACCOUNTS: nav control + modal ── */
+.auth-nav{display:flex;align-items:center;gap:.6rem;}
+.auth-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.1rem;border:1px solid var(--gold);background:var(--gold);color:var(--brown-dark);font-family:'Montserrat',sans-serif;font-size:.62rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:background .2s,border-color .2s;}
+.auth-btn:hover{background:var(--gold-light);border-color:var(--gold-light);}
+.auth-btn-ghost{background:rgba(0,0,0,.25);border:1px solid rgba(201,168,76,.3);color:var(--cream-dim);font-weight:400;}
+.auth-btn-ghost:hover{background:rgba(201,168,76,.08);border-color:var(--gold);color:var(--gold);}
+.auth-user{display:inline-flex;align-items:center;gap:.55rem;}
+.auth-user-name{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);white-space:nowrap;max-width:9rem;overflow:hidden;text-overflow:ellipsis;}
+.auth-user-role{font-size:.5rem;letter-spacing:.12em;text-transform:uppercase;color:var(--brown-dark);background:var(--gold-dim);padding:.15rem .4rem;border-radius:2px;}
+
+.auth-overlay{position:fixed;inset:0;background:rgba(8,4,1,.93);z-index:900;display:none;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
+.auth-overlay.open{display:flex;}
+.auth-modal{position:relative;background:var(--brown-mid);border:1px solid rgba(201,168,76,.28);max-width:420px;width:100%;margin:auto;padding:2.5rem 2.2rem 2rem;animation:authIn .3s ease;}
+@keyframes authIn{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+.auth-close{position:absolute;top:.7rem;right:.7rem;background:rgba(10,5,2,.7);border:1px solid rgba(201,168,76,.3);color:var(--gold);font-size:1rem;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:2px;line-height:1;}
+.auth-close:hover{background:rgba(201,168,76,.15);}
+.auth-title{font-family:'Cormorant Garamond',serif;font-size:1.9rem;font-weight:300;color:var(--cream);text-align:center;margin-bottom:.4rem;}
+.auth-sub{font-size:.7rem;color:var(--cream-dim);text-align:center;line-height:1.6;margin-bottom:1.8rem;}
+.auth-divider{width:46px;height:1px;background:var(--gold-dim);margin:0 auto 1.6rem;}
+.auth-field{margin-bottom:1rem;}
+.auth-field label{display:block;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-dim);margin-bottom:.4rem;}
+.auth-field input[type=text],.auth-field input[type=email],.auth-field input[type=password]{width:100%;padding:.75rem .9rem;background:rgba(0,0,0,.3);border:1px solid rgba(201,168,76,.22);color:var(--cream);font-family:'Montserrat',sans-serif;font-size:.82rem;transition:border-color .2s;}
+.auth-field input:focus{outline:none;border-color:var(--gold);}
+.auth-check{display:flex;align-items:flex-start;gap:.6rem;margin:1.1rem 0 1.4rem;font-size:.68rem;color:var(--cream-dim);line-height:1.5;}
+.auth-check input{margin-top:.15rem;flex-shrink:0;accent-color:var(--gold);}
+.auth-submit{width:100%;padding:.85rem 1rem;background:var(--gold);border:1px solid var(--gold);color:var(--brown-dark);font-family:'Montserrat',sans-serif;font-size:.68rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:background .2s;}
+.auth-submit:hover:not(:disabled){background:var(--gold-light);}
+.auth-submit:disabled{opacity:.55;cursor:not-allowed;}
+.auth-switch{text-align:center;font-size:.7rem;color:var(--cream-dim);margin-top:1.3rem;}
+.auth-switch button{background:none;border:none;color:var(--gold);font-family:'Montserrat',sans-serif;font-size:.7rem;cursor:pointer;text-decoration:underline;padding:0;}
+.auth-msg{display:none;padding:.7rem .9rem;margin-bottom:1.1rem;font-size:.72rem;line-height:1.5;border:1px solid;}
+.auth-msg.show{display:block;}
+.auth-msg.error{background:rgba(220,50,50,.1);border-color:rgba(220,50,50,.45);color:#f08080;}
+.auth-msg.ok{background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.4);color:var(--gold-light);}
+.auth-legal{font-size:.58rem;color:rgba(200,185,154,.4);text-align:center;line-height:1.6;margin-top:1.4rem;}
+
+@media(max-width:700px){
+  .auth-modal{padding:2.2rem 1.4rem 1.6rem;}
+  .auth-btn{padding:.5rem .8rem;letter-spacing:.12em;}
+  .auth-user-name{max-width:6rem;}
+}

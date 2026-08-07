@@ -16,11 +16,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
 body.wc-active nav{top:38px;}
 nav.scrolled{background:rgba(18,9,2,0.97);border-bottom:1px solid rgba(201,168,76,0.2);}
 .nav-logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--gold);letter-spacing:.08em;text-decoration:none;white-space:nowrap;}
-.nav-links{display:flex;gap:.5rem;list-style:none;flex-wrap:wrap;justify-content:flex-end;}
-.nav-links a,.nav-links button{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .9rem;border:1px solid rgba(201,168,76,.25);background:rgba(0,0,0,.25);color:var(--cream-dim);font-family:'Montserrat',sans-serif;font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;text-decoration:none;cursor:pointer;transition:all .25s;white-space:nowrap;}
-.nav-links a:hover,.nav-links button:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.08);}
-.nav-links a.nav-cta{background:var(--gold);border-color:var(--gold);color:var(--brown-dark);font-weight:600;}
-.nav-links a.nav-cta:hover{background:var(--gold-light);border-color:var(--gold-light);}
 /* CALL MODAL */
 .call-modal-overlay{position:fixed;inset:0;background:rgba(10,5,2,.85);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;}
 .call-modal-overlay.open{display:flex;}
@@ -172,7 +167,6 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 .instagram-btn{display:inline-flex;align-items:center;gap:.6rem;padding:.9rem 2.4rem;border:1px solid rgba(201,168,76,.5);color:var(--gold);background:transparent;font-family:'Montserrat',sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;text-decoration:none;transition:all .3s;}
 .instagram-btn:hover{background:rgba(201,168,76,.1);border-color:var(--gold);}
 /* MOBILE */
-@media(max-width:900px){.nav-links a span,.nav-links button span{display:none;}.nav-links a,.nav-links button{padding:.45rem .7rem;}.nav-links a.nav-cta span,.nav-links a.nav-faq span{display:inline;}.nav-links a.nav-cta,.nav-links a.nav-faq{padding:.45rem 1rem;}}
 @media(max-width:700px){nav{padding:.9rem 1rem;}.nav-logo{font-size:1.1rem;}.about-grid,.visit-grid,.reviews-grid{grid-template-columns:1fr;gap:2.5rem;}.about-stats{grid-template-columns:1fr 1fr;}.reviews-header{flex-direction:column;align-items:flex-start;}}
 /* WORLD CUP BANNER */
 .wc-banner{position:fixed;top:0;left:0;right:0;z-index:101;background:linear-gradient(90deg,#0a3d0a,#1a6b1a,#0a3d0a);border-bottom:1px solid rgba(201,168,76,.5);padding:.55rem 2rem;display:none;align-items:center;justify-content:center;gap:1rem;cursor:pointer;transition:background .3s;}
@@ -198,6 +192,7 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 .ad-modal-close:hover{background:rgba(201,168,76,.2);color:var(--gold-light);}
 @media(max-width:700px){.ad-modal{max-width:100%;}}
 </style>
+<link rel="stylesheet" href="auth.css">
 </head>
 <body>
 
@@ -232,15 +227,7 @@ footer{background:#0E0602;padding:3rem 2rem;text-align:center;border-top:1px sol
 <!-- NAV -->
 <nav id="navbar">
   <a href="#hero" class="nav-logo">Excalibur</a>
-  <ul class="nav-links">
-    <li><a href="faq.html" class="nav-faq"><span>FAQ</span></a></li>
-    <li><a href="menu.html" class="nav-cta"><span>&#128209;</span> <span>Menu</span></a></li>
-    <li><a href="#visit"><span>&#128336;</span> <span>Hours</span></a></li>
-    <li><a href="#reviews"><span>&#11088;</span> <span>Reviews</span></a></li>
-    <li><a href="https://maps.google.com/?q=8199+Clairemont+Mesa+Blvd+Ste+O,+San+Diego,+CA+92111" target="_blank"><span>&#128205;</span> <span>Directions</span></a></li>
-    <li><button onclick="openCallModal()"><span>&#128197;</span> <span>Reservations</span></button></li>
-    <li><a href="#gallery"><span>&#128247;</span> <span>Photos</span></a></li>
-  </ul>
+  <div class="auth-nav"></div>
 </nav>
 
 <!-- WORLD CUP BANNER -->
@@ -460,5 +447,6 @@ function enterSite(){document.getElementById('ageGate').style.display='none';ses
 function denySite(){document.getElementById('ageGate').innerHTML='<div class="age-gate" style="text-align:center"><div class="age-gate-logo">Excalibur</div><div class="age-gate-divider" style="margin:1.5rem auto"></div><p style="color:var(--cream-dim);font-size:.9rem;line-height:1.8">Sorry, you must be 21 or older to visit this site.<br>Please come back when you are of legal age.</p></div>';}
 if(sessionStorage.getItem('ageVerified')){document.getElementById('ageGate').style.display='none';showWcBanner();showAdModal();}
 </script>
+<script src="auth.js"></script>
 </body>
 </html>

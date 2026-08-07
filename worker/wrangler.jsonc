@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "excalibur-auth",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-21",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    // Origins permitted to call this worker. Add http://localhost:8899 while testing.
+    "ALLOWED_ORIGINS": "https://excaliburloungesd.com,https://www.excaliburloungesd.com"
+    // OWNER_EMAIL is set as a secret, not here — see README.md
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "excalibur-accounts",
+      "database_id": "PASTE_DATABASE_ID_HERE"
+    }
+  ]
+}
