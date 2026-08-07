@@ -16,18 +16,21 @@ function trackIsOwner(){
 function trackSend(payload){
   if (trackIsOwner()) return;
   try {
+    // text/plain keeps this a CORS "simple request", so no preflight is needed.
+    // The worker parses the body as JSON regardless of the declared type.
+    // (An application/json beacon is silently dropped cross-origin, because
+    // sendBeacon cannot perform the preflight that content type demands.)
     const body = JSON.stringify(payload);
-    // sendBeacon survives the page being closed mid-request; fetch is the fallback.
-    if (navigator.sendBeacon){
-      navigator.sendBeacon(TRACK_URL + '/track', new Blob([body], { type: 'application/json' }));
-    } else {
-      fetch(TRACK_URL + '/track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        keepalive: true
-      }).catch(() => {});
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(TRACK_URL + '/track', new Blob([body], { type: 'text/plain' }))){
+      return;
     }
+    fetch(TRACK_URL + '/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body,
+      keepalive: true
+    }).catch(() => {});
   } catch(e){}
 }
 
