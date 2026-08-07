@@ -1,0 +1,212 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Dashboard &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--gold:#C9A84C;--gold-light:#E4C97E;--gold-dim:#8B6914;--brown-dark:#1A0F06;--brown-mid:#2E1A0E;--brown-warm:#3D2410;--cream:#F5EDD8;--cream-dim:#C8B99A;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--brown-dark);color:var(--cream);font-family:'Montserrat',sans-serif;line-height:1.6;min-height:100vh;}
+nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:1rem 2.5rem;background:rgba(18,9,2,0.97);border-bottom:1px solid rgba(201,168,76,0.2);}
+.nav-logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--gold);text-decoration:none;}
+.nav-back{font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-dim);text-decoration:none;transition:color .2s;}
+.nav-back:hover{color:var(--gold);}
+
+.wrap{max-width:1100px;margin:0 auto;padding:3rem 2rem 5rem;}
+.dash-head{margin-bottom:2.5rem;}
+.dash-eyebrow{font-size:.6rem;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.6rem;}
+.dash-title{font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:300;color:var(--cream);}
+.dash-title em{color:var(--gold);font-style:italic;}
+.dash-meta{font-size:.7rem;color:var(--cream-dim);margin-top:.6rem;}
+
+.state{padding:3rem 2rem;text-align:center;border:1px solid rgba(201,168,76,.2);background:rgba(255,255,255,.02);}
+.state h2{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--cream);margin-bottom:.6rem;}
+.state p{font-size:.82rem;color:var(--cream-dim);}
+.state a{color:var(--gold);}
+
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:3rem;}
+.stat{padding:1.6rem 1.4rem;border:1px solid rgba(201,168,76,.18);background:rgba(255,255,255,.025);}
+.stat-label{font-size:.58rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.7rem;}
+.stat-value{font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:400;color:var(--gold-light);line-height:1;}
+.stat-sub{font-size:.66rem;color:var(--cream-dim);margin-top:.5rem;}
+
+.section{margin-bottom:3rem;}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;border-bottom:1px solid rgba(201,168,76,.18);padding-bottom:.7rem;margin-bottom:1.2rem;}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:400;color:var(--gold-light);}
+.section-note{font-size:.66rem;color:var(--cream-dim);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2rem;}
+
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);padding:.5rem .6rem;border-bottom:1px solid rgba(201,168,76,.15);font-weight:500;}
+th.num,td.num{text-align:right;}
+td{padding:.6rem;font-size:.82rem;color:var(--cream);border-bottom:1px solid rgba(201,168,76,.07);}
+tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:rgba(201,168,76,.05);}
+.rank{color:var(--gold-dim);font-size:.7rem;width:2rem;}
+.count{color:var(--gold-light);font-weight:600;}
+.zero-tag{display:inline-block;margin-left:.5rem;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;color:#f0a0a0;border:1px solid rgba(220,80,80,.4);padding:.1rem .35rem;vertical-align:middle;}
+.empty{padding:1.6rem .6rem;font-size:.78rem;color:rgba(200,185,154,.55);font-style:italic;}
+
+.bar{position:relative;height:3px;background:rgba(201,168,76,.12);margin-top:.35rem;}
+.bar span{position:absolute;inset:0 auto 0 0;background:var(--gold-dim);}
+
+@media(max-width:900px){
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .two-col{grid-template-columns:1fr;gap:2.5rem;}
+}
+@media(max-width:600px){
+  .wrap{padding:2rem 1.1rem 4rem;}
+  nav{padding:1rem 1.2rem;}
+  .dash-title{font-size:2rem;}
+  .stat-value{font-size:2.1rem;}
+}
+</style>
+<link rel="stylesheet" href="auth.css">
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="index.html" class="nav-back">&#8592; Back to Site</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="dash-head">
+    <div class="dash-eyebrow">Owner Dashboard</div>
+    <h1 class="dash-title">Site <em>Insights</em></h1>
+    <div class="dash-meta" id="dashMeta">Loading&hellip;</div>
+  </div>
+
+  <div id="dashState"></div>
+
+  <div id="dashBody" style="display:none">
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">Total Views</div>
+        <div class="stat-value" id="statAll">&mdash;</div>
+        <div class="stat-sub" id="subAll"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Today</div>
+        <div class="stat-value" id="statToday">&mdash;</div>
+        <div class="stat-sub" id="subToday"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Last 7 Days</div>
+        <div class="stat-value" id="statWeek">&mdash;</div>
+        <div class="stat-sub" id="subWeek"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Last 30 Days</div>
+        <div class="stat-value" id="statMonth">&mdash;</div>
+        <div class="stat-sub" id="subMonth"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">What People Search For</div>
+        <div class="section-note">Most searched at the top &middot; flagged when nothing was found</div>
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="section-note" style="margin-bottom:.6rem;color:var(--gold);letter-spacing:.2em;text-transform:uppercase;font-size:.6rem;">Cigars</div>
+          <table><thead><tr><th></th><th>Search Term</th><th class="num">Times</th></tr></thead>
+            <tbody id="cigarRows"></tbody></table>
+        </div>
+        <div>
+          <div class="section-note" style="margin-bottom:.6rem;color:var(--gold);letter-spacing:.2em;text-transform:uppercase;font-size:.6rem;">Drinks</div>
+          <table><thead><tr><th></th><th>Search Term</th><th class="num">Times</th></tr></thead>
+            <tbody id="drinkRows"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Most Visited Pages</div>
+      </div>
+      <table><thead><tr><th></th><th>Page</th><th class="num">Views</th></tr></thead>
+        <tbody id="pageRows"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script>
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function num(n){ return (n || 0).toLocaleString(); }
+
+function state(title, msg){
+  document.getElementById('dashState').innerHTML =
+    '<div class="state"><h2>' + esc(title) + '</h2><p>' + msg + '</p></div>';
+  document.getElementById('dashBody').style.display = 'none';
+  document.getElementById('dashMeta').textContent = '';
+}
+
+function rankRows(tbody, rows, labelKey, max){
+  if (!rows.length){
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">Nothing recorded yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => {
+    const pct = max ? Math.round((r.count / max) * 100) : 0;
+    const zero = r.zeroResults ? ' <span class="zero-tag">no results</span>' : '';
+    return '<tr>' +
+      '<td class="rank">' + (i + 1) + '</td>' +
+      '<td>' + esc(r[labelKey]) + zero +
+        '<div class="bar"><span style="width:' + pct + '%"></span></div></td>' +
+      '<td class="num count">' + num(r.count) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function loadDashboard(){
+  if (!authToken()){
+    state('Sign in required', 'This dashboard is for the lounge owner. Use Sign In at the top right.');
+    return;
+  }
+  let data;
+  try {
+    data = await authApi('/stats');
+  } catch (err){
+    const m = String(err.message || '');
+    if (/owner/i.test(m)) state('Owner access only', 'This account is not the owner account.');
+    else if (/signed in/i.test(m)) state('Session expired', 'Please sign in again from the top right.');
+    else state('Could not load stats', esc(m));
+    return;
+  }
+
+  document.getElementById('dashState').innerHTML = '';
+  document.getElementById('dashBody').style.display = '';
+
+  const t = data.totals;
+  const set = (id, v) => { document.getElementById(id).textContent = num(v); };
+  set('statAll', t.all.views); set('statToday', t.today.views);
+  set('statWeek', t.week.views); set('statMonth', t.month.views);
+  const sub = (id, v) => { document.getElementById(id).textContent = num(v) + ' visitor' + (v === 1 ? '' : 's'); };
+  sub('subAll', t.all.visitors); sub('subToday', t.today.visitors);
+  sub('subWeek', t.week.visitors); sub('subMonth', t.month.visitors);
+
+  const cig = data.searches.cigar || [], dr = data.searches.drink || [];
+  rankRows(document.getElementById('cigarRows'), cig, 'term', cig.length ? cig[0].count : 0);
+  rankRows(document.getElementById('drinkRows'), dr, 'term', dr.length ? dr[0].count : 0);
+  const pg = (data.pages || []).map(p => ({ term: p.path, count: p.count }));
+  rankRows(document.getElementById('pageRows'), pg, 'term', pg.length ? pg[0].count : 0);
+
+  document.getElementById('dashMeta').textContent =
+    'Times shown in Pacific · updated ' + new Date(data.generatedAt).toLocaleTimeString();
+}
+
+// auth.js resolves the session asynchronously; wait for it before asking for stats.
+(async function(){
+  for (let i = 0; i < 40 && authToken() && !authUser; i++){
+    await new Promise(r => setTimeout(r, 100));
+  }
+  loadDashboard();
+})();
+</script>

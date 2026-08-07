@@ -138,6 +138,116 @@ async function clearAttempts(env, key){
   await env.DB.prepare('DELETE FROM login_attempts WHERE key = ?').bind(key).run();
 }
 
+/* ── analytics ── */
+
+/** Calendar day in San Diego, so "today" on the dashboard matches the lounge's day. */
+function localDay(date){
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(date);
+  } catch (e){
+    // Fallback if the runtime lacks timezone data: fixed Pacific offset.
+    return new Date(date.getTime() - 8 * 3600000).toISOString().slice(0, 10);
+  }
+}
+
+function daysAgo(n){
+  return localDay(new Date(Date.now() - n * 86400000));
+}
+
+/** Per-day visitor hash: no cookie, and it stops being linkable after 24h. */
+async function visitorHash(request, env){
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const ua = request.headers.get('User-Agent') || '';
+  const salt = env.ANALYTICS_SALT || 'excalibur';
+  return (await sha256Hex(ip + '|' + ua + '|' + localDay(new Date()) + '|' + salt)).slice(0, 32);
+}
+
+function looksLikeBot(request){
+  const ua = (request.headers.get('User-Agent') || '').toLowerCase();
+  if (!ua) return true;
+  return /bot|crawl|spider|slurp|bingpreview|headless|monitor|pingdom|uptime|lighthouse|curl|wget|python-requests/.test(ua);
+}
+
+async function handleTrack(request, env){
+  if (looksLikeBot(request)) return json({ ok: true, skipped: 'bot' }, 200, request, env);
+
+  const body = await request.json().catch(() => ({}));
+  const type = body.type === 'search' ? 'search' : body.type === 'pageview' ? 'pageview' : null;
+  if (!type) return json({ error: 'Unknown event type.' }, 400, request, env);
+
+  const path = String(body.path || '').slice(0, 120) || null;
+  const category = ['cigar', 'drink'].includes(body.category) ? body.category : null;
+  const term = type === 'search' ? String(body.term || '').trim().slice(0, 80) : null;
+  const hits = Number.isFinite(body.hits) ? Math.max(0, Math.min(9999, Math.trunc(body.hits))) : null;
+
+  if (type === 'search' && (!term || !category)) {
+    return json({ error: 'Search events need a term and category.' }, 400, request, env);
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO events (type, path, category, term, hits, visitor, day, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    type, path, category, term, hits,
+    await visitorHash(request, env), localDay(new Date()), new Date().toISOString()
+  ).run();
+
+  return json({ ok: true }, 200, request, env);
+}
+
+async function handleStats(request, env){
+  const user = await currentUser(request, env);
+  if (!user) return json({ error: 'Not signed in.' }, 401, request, env);
+  if (user.role !== 'owner') return json({ error: 'Owner access only.' }, 403, request, env);
+
+  const today = localDay(new Date());
+  const week = daysAgo(6);    // today plus the previous 6 days
+  const month = daysAgo(29);
+
+  const views = async (where, ...binds) => {
+    const r = await env.DB.prepare(
+      `SELECT COUNT(*) AS n, COUNT(DISTINCT visitor) AS u FROM events WHERE type = 'pageview'${where}`
+    ).bind(...binds).first();
+    return { views: r?.n || 0, visitors: r?.u || 0 };
+  };
+
+  const searches = async (category) => {
+    const r = await env.DB.prepare(
+      `SELECT term, COUNT(*) AS n, SUM(CASE WHEN hits = 0 THEN 1 ELSE 0 END) AS zero
+         FROM events
+        WHERE type = 'search' AND category = ? AND term IS NOT NULL AND term <> ''
+        GROUP BY term
+        ORDER BY n DESC, term ASC
+        LIMIT 200`
+    ).bind(category).all();
+    return (r.results || []).map(row => ({ term: row.term, count: row.n, zeroResults: row.zero }));
+  };
+
+  const pages = await env.DB.prepare(
+    `SELECT path, COUNT(*) AS n FROM events
+      WHERE type = 'pageview' AND path IS NOT NULL
+      GROUP BY path ORDER BY n DESC LIMIT 20`
+  ).all();
+
+  return json({
+    generatedAt: new Date().toISOString(),
+    timezone: 'America/Los_Angeles',
+    totals: {
+      all:   await views(''),
+      today: await views(' AND day = ?', today),
+      week:  await views(' AND day >= ?', week),
+      month: await views(' AND day >= ?', month)
+    },
+    searches: {
+      cigar: await searches('cigar'),
+      drink: await searches('drink')
+    },
+    pages: (pages.results || []).map(r => ({ path: r.path, count: r.n }))
+  }, 200, request, env);
+}
+
 /* ── handlers ── */
 
 async function handleRegister(request, env){
@@ -246,6 +356,8 @@ export default {
       if (url.pathname === '/auth/login'    && request.method === 'POST') return await handleLogin(request, env);
       if (url.pathname === '/auth/logout'   && request.method === 'POST') return await handleLogout(request, env);
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
+      if (url.pathname === '/track'         && request.method === 'POST') return await handleTrack(request, env);
+      if (url.pathname === '/stats'         && request.method === 'GET')  return await handleStats(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);

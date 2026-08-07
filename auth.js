@@ -28,8 +28,35 @@ async function authApi(path, body, method){
   return data;
 }
 
+/* Cached so analytics.js can skip the owner's own visits without waiting
+   for /auth/me to come back. */
+function authCacheRole(role){
+  try {
+    role ? localStorage.setItem('excaliburAuthRole', role)
+         : localStorage.removeItem('excaliburAuthRole');
+  } catch(e){}
+}
+
+/* The Dashboard link sits centred in the nav bar, owner only. */
+function authRenderDash(){
+  document.querySelectorAll('nav').forEach(nav => {
+    const existing = nav.querySelector('.nav-dash');
+    const wanted = authUser && authUser.role === 'owner' && !/dashboard\.html$/.test(location.pathname);
+    if (wanted && !existing){
+      const a = document.createElement('a');
+      a.className = 'nav-dash';
+      a.href = 'dashboard.html';
+      a.innerHTML = '&#128202; Dashboard';
+      nav.appendChild(a);
+    } else if (!wanted && existing){
+      existing.remove();
+    }
+  });
+}
+
 /* ── nav rendering ── */
 function authRenderNav(){
+  authRenderDash();
   document.querySelectorAll('.auth-nav').forEach(el => {
     if (authUser){
       const role = authUser.role && authUser.role !== 'member'
@@ -156,6 +183,7 @@ async function authSubmit(e){
     const data = await authApi(signup ? '/auth/register' : '/auth/login', payload);
     authSetToken(data.token);
     authUser = data.user;
+    authCacheRole(authUser.role);
     authRenderNav();
     authMessage(signup ? 'Account created. Welcome to Excalibur.' : 'Signed in.', 'ok');
     setTimeout(authClose, 700);
@@ -171,6 +199,7 @@ async function authSignOut(){
   try { await authApi('/auth/logout', {}); } catch(e){}
   authSetToken(null);
   authUser = null;
+  authCacheRole(null);
   authRenderNav();
 }
 
@@ -181,9 +210,11 @@ async function authInit(){
   try {
     const data = await authApi('/auth/me');
     authUser = data.user;
+    authCacheRole(authUser.role);
   } catch(e){
     authSetToken(null);
     authUser = null;
+    authCacheRole(null);
   }
   authRenderNav();
 }

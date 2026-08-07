@@ -29,3 +29,21 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_attempts_key ON login_attempts(key, created_at);
+
+-- Site analytics. `day` is the calendar day in America/Los_Angeles, so
+-- "today" on the dashboard means today in San Diego, not UTC.
+CREATE TABLE IF NOT EXISTS events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  type        TEXT NOT NULL,          -- 'pageview' | 'search'
+  path        TEXT,                   -- '/menu.html' for pageviews
+  category    TEXT,                   -- 'cigar' | 'drink' for searches
+  term        TEXT,                   -- what was typed
+  hits        INTEGER,                -- results the search returned (0 = nothing found)
+  visitor     TEXT NOT NULL,          -- daily-rotating hash, no cookie, not reversible to a person
+  day         TEXT NOT NULL,          -- YYYY-MM-DD, Pacific
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_day ON events(day);
+CREATE INDEX IF NOT EXISTS idx_events_type_day ON events(type, day);
+CREATE INDEX IF NOT EXISTS idx_events_search ON events(type, category, term);
