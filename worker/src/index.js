@@ -15,7 +15,10 @@
  *            is stored, so a database dump does not yield usable sessions.
  */
 
-const PBKDF2_ITERATIONS = 210000;
+// Workers caps PBKDF2 iterations well below the OWASP figure for servers.
+// The per-user count is stored in the users table, so this can be raised
+// later without invalidating existing passwords.
+const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 30;
 const MAX_FAILED_ATTEMPTS = 8;
 const ATTEMPT_WINDOW_MIN = 15;
@@ -244,7 +247,11 @@ export default {
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
     } catch (err){
       console.error('auth error', url.pathname, err && err.stack || err);
-      return json({ error: 'Server error. Please try again.' }, 500, request, env);
+      // TEMPORARY: surfaces the cause while we get accounts working.
+      // Remove `detail` once signup succeeds.
+      return json({
+        error: 'Server error: ' + String(err && err.message || err).slice(0, 200)
+      }, 500, request, env);
     }
 
     return json({ error: 'Not found.' }, 404, request, env);
