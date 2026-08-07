@@ -10,7 +10,8 @@
  *   POST /auth/logout    (Bearer token)          -> {ok:true}
  *   GET  /auth/me        (Bearer token)          -> {user}
  *
- * Passwords: PBKDF2-SHA256, 210k iterations, per-user 16-byte salt.
+ * Passwords: PBKDF2-SHA256, per-user 16-byte salt, iteration count stored
+ *            per user so it can be raised without invalidating passwords.
  * Sessions:  32 random bytes returned to the client; only the SHA-256 hash
  *            is stored, so a database dump does not yield usable sessions.
  */
