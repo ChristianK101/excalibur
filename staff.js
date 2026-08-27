@@ -39,6 +39,34 @@ function money(n){
   return n == null ? '—' : '$' + Number(n).toFixed(2);
 }
 
+/**
+ * The first 64 bits of an IPv6 address — the network, not the device.
+ * Devices rotate the second half for privacy, so only this part is stable.
+ * Returns null for IPv4.
+ */
+function ipv6Network(ip){
+  if (!ip || ip.indexOf(':') === -1) return null;
+  const [head, tail] = ip.split('::');
+  let parts = head.split(':').filter(Boolean);
+  if (tail !== undefined){
+    const rest = tail.split(':').filter(Boolean);
+    while (parts.length + rest.length < 8) parts.push('0');
+    parts = parts.concat(rest);
+  }
+  // Normalise each group so 0f3d and f3d compare equal.
+  return parts.slice(0, 4).map(h => parseInt(h, 16).toString(16)).join(':');
+}
+
+/** Is this punch from one of the lounge's networks? Unknown counts as yes. */
+function onLoungeNetwork(ip, networks){
+  if (!ip || !networks || !networks.length) return true;
+  const mine = ipv6Network(ip);
+  return networks.some(n => {
+    const theirs = ipv6Network(n);
+    return (mine && theirs) ? mine === theirs : ip === n;
+  });
+}
+
 /** How far Pacific is from UTC at a given instant, in ms (PDT = -7h). */
 function pacificOffsetMs(date){
   const name = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'shortOffset' })

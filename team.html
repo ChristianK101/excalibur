@@ -102,9 +102,11 @@ let month = null;
 let staff = [];
 let logEntries = [];
 
-// Set this to the lounge's public IP to flag punches made elsewhere.
-// Leave empty and nothing is flagged.
-const LOUNGE_IP = '';
+// The lounge's networks. Punches from anywhere else get an "Off-network"
+// badge - nobody is blocked, it is only a flag worth a glance.
+// IPv6 entries match on the network half, since devices rotate the rest.
+// Add the lounge's IPv4 address here too once it is known.
+const LOUNGE_NETWORKS = ['2603:8001:5700:f3d::'];
 
 function thisMonth(){
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' })
@@ -171,7 +173,7 @@ function renderLog(){
     const flags = [];
     if (!e.clock_out) flags.push('<span class="pill pill-on">Still on</span>');
     if (e.created_by) flags.push('<span class="pill pill-flag">Added by manager</span>');
-    if (LOUNGE_IP && e.in_ip && e.in_ip !== LOUNGE_IP) flags.push('<span class="pill pill-flag">Off-network</span>');
+    if (!onLoungeNetwork(e.in_ip, LOUNGE_NETWORKS)) flags.push('<span class="pill pill-flag">Off-network</span>');
     return '<tr>' +
       '<td>' + esc(e.name) + '</td>' +
       '<td class="muted">' + fmtDay(e.clock_in) + '</td>' +
