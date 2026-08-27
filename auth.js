@@ -37,18 +37,27 @@ function authCacheRole(role){
   } catch(e){}
 }
 
-/* The Dashboard link sits centred in the nav bar, owner only. */
+/* One centred nav link, and which one depends on the role.
+   Customers get none. */
+const AUTH_ROLE_LINK = {
+  owner:    { href: 'dashboard.html', label: '&#128202; Dashboard' },
+  manager:  { href: 'team.html',      label: '&#128101; Team' },
+  employee: { href: 'schedule.html',  label: '&#128197; Schedules' }
+};
+
 function authRenderDash(){
+  const link = authUser ? AUTH_ROLE_LINK[authUser.role] : null;
+  const here = location.pathname.split('/').pop();
   document.querySelectorAll('nav').forEach(nav => {
     const existing = nav.querySelector('.nav-dash');
-    const wanted = authUser && authUser.role === 'owner' && !/dashboard\.html$/.test(location.pathname);
-    if (wanted && !existing){
-      const a = document.createElement('a');
+    const wanted = link && here !== link.href;
+    if (wanted){
+      const a = existing || document.createElement('a');
       a.className = 'nav-dash';
-      a.href = 'dashboard.html';
-      a.innerHTML = '&#128202; Dashboard';
-      nav.appendChild(a);
-    } else if (!wanted && existing){
+      a.href = link.href;
+      a.innerHTML = link.label;
+      if (!existing) nav.appendChild(a);
+    } else if (existing){
       existing.remove();
     }
   });

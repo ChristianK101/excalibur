@@ -1,0 +1,114 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>People &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="staff.css">
+<link rel="stylesheet" href="auth.css">
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="dashboard.html" class="nav-back">&#8592; Dashboard</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="page-eyebrow">Owner</div>
+    <h1 class="page-title">People &amp; <em>Activity</em></h1>
+    <div class="page-meta" id="meta">Loading&hellip;</div>
+  </div>
+
+  <div id="state"></div>
+
+  <div id="body" style="display:none">
+    <div class="msg" id="msg"></div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Accounts</div>
+        <div class="section-note">Everyone who has signed up &middot; new accounts start as customers</div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Role</th><th>Change Role</th></tr></thead>
+          <tbody id="peopleRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Activity Log</div>
+        <div class="section-note">Every change made by you or a manager &middot; newest first</div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead>
+          <tbody id="auditRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="staff.js"></script>
+<script>
+const ROLES = ['customer', 'employee', 'manager', 'owner'];
+
+function renderPeople(people){
+  const tb = document.getElementById('peopleRows');
+  if (!people.length){ tb.innerHTML = '<tr><td colspan="5" class="empty">No accounts yet.</td></tr>'; return; }
+  tb.innerHTML = people.map(p => {
+    const isMe = authUser && p.id === authUser.id;
+    const options = ROLES.map(r =>
+      `<option value="${r}"${r === p.role ? ' selected' : ''}>${r}</option>`).join('');
+    const control = isMe
+      ? '<span class="muted">that&rsquo;s you</span>'
+      : `<select onchange="setRole(${p.id}, this.value, this)">${options}</select>`;
+    return '<tr>' +
+      '<td>' + esc(p.name) + '</td>' +
+      '<td class="muted">' + esc(p.email) + '</td>' +
+      '<td class="muted">' + fmtDay(p.createdAt) + '</td>' +
+      '<td><span class="pill pill-' + esc(p.role) + '">' + esc(p.role) + '</span></td>' +
+      '<td>' + control + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function renderAudit(log){
+  const tb = document.getElementById('auditRows');
+  if (!log.length){ tb.innerHTML = '<tr><td colspan="4" class="empty">Nothing logged yet.</td></tr>'; return; }
+  tb.innerHTML = log.map(a => '<tr>' +
+    '<td class="muted">' + fmtWhen(a.created_at) + '</td>' +
+    '<td>' + esc(a.actor_name) + ' <span class="pill pill-' + esc(a.actor_role) + '">' + esc(a.actor_role) + '</span></td>' +
+    '<td class="muted">' + esc(a.action) + '</td>' +
+    '<td>' + esc(a.details || '') + '</td>' +
+  '</tr>').join('');
+}
+
+async function setRole(userId, role, el){
+  el.disabled = true;
+  try {
+    await authApi('/people/role', { userId, role });
+    flash('Role updated.', 'ok');
+    await load();
+  } catch (err){
+    flash(err.message, 'err');
+    el.disabled = false;
+  }
+}
+
+async function load(){
+  const [people, audit] = await Promise.all([authApi('/people'), authApi('/audit')]);
+  renderPeople(people.people);
+  renderAudit(audit.log);
+  document.getElementById('meta').textContent =
+    people.people.length + ' account' + (people.people.length === 1 ? '' : 's') + ' · times shown Pacific';
+}
+
+staffBoot('owner', load);
+</script>

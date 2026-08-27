@@ -1,0 +1,287 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Team &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="staff.css">
+<link rel="stylesheet" href="auth.css">
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="index.html" class="nav-back">&#8592; Back to Site</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="page-eyebrow">Manager</div>
+    <h1 class="page-title">The <em>Team</em></h1>
+    <div class="page-meta" id="meta">Loading&hellip;</div>
+  </div>
+
+  <div id="state"></div>
+
+  <div id="body" style="display:none">
+    <div class="msg" id="msg"></div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Staff</div>
+        <div class="section-note">
+          <button class="btn btn-ghost btn-sm" onclick="stepMonth(-1)">&larr;</button>
+          <span id="monthLabel" style="margin:0 .6rem;color:var(--gold-light)"></span>
+          <button class="btn btn-ghost btn-sm" onclick="stepMonth(1)">&rarr;</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Role</th><th>Status</th>
+            <th class="num">Hours</th><th class="num">Rate</th><th class="num">Pay</th><th class="num">Tips</th>
+            <th>Set Rate</th>
+          </tr></thead>
+          <tbody id="staffRows"></tbody>
+        </table>
+      </div>
+      <div class="section-note" style="margin-top:.7rem;">
+        Pay is hours &times; rate for the month shown. Tips are whatever has been entered by hand &mdash; they are not included in pay.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">Schedule a Shift</div></div>
+      <div class="form-row">
+        <label class="field">Person<select id="shiftUser"></select></label>
+        <label class="field">Date<input type="date" id="shiftDate"></label>
+        <label class="field">Start<input type="time" id="shiftStart" value="09:00"></label>
+        <label class="field">End<input type="time" id="shiftEnd" value="17:00"></label>
+        <label class="field">Note<input type="text" id="shiftNote" placeholder="optional" maxlength="200"></label>
+        <button class="btn" onclick="addShift()">Add Shift</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Person</th><th>Date</th><th>Time</th><th>Note</th><th></th></tr></thead>
+          <tbody id="shiftRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">Add Tips</div>
+        <div class="section-note">Entered by hand &middot; every entry is logged</div></div>
+      <div class="form-row">
+        <label class="field">Person<select id="tipUser"></select></label>
+        <label class="field">Date<input type="date" id="tipDate"></label>
+        <label class="field">Amount ($)<input type="number" id="tipAmount" min="0" step="0.01" placeholder="0.00"></label>
+        <label class="field">Note<input type="text" id="tipNote" placeholder="optional" maxlength="200"></label>
+        <button class="btn" onclick="addTip()">Add Tips</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Clock Log</div>
+        <div class="section-note">Every punch &middot; newest first &middot; off-network punches are flagged</div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Person</th><th>Date</th><th>In</th><th>Out</th><th class="num">Hours</th><th>Flags</th><th></th></tr></thead>
+          <tbody id="logRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="staff.js"></script>
+<script>
+let month = null;
+let staff = [];
+let logEntries = [];
+
+// Set this to the lounge's public IP to flag punches made elsewhere.
+// Leave empty and nothing is flagged.
+const LOUNGE_IP = '';
+
+function thisMonth(){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' })
+    .format(new Date()).slice(0, 7);
+}
+
+function stepMonth(delta){
+  const [y, m] = month.split('-').map(Number);
+  month = new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
+  load();
+}
+
+function hours(a, b){
+  if (!a || !b) return null;
+  return Math.round(((Date.parse(b) - Date.parse(a)) / 3600000) * 100) / 100;
+}
+
+/** Form date + time are lounge wall-clock, converted in staff.js. */
+function toInstant(date, time){
+  return pacificToInstant(date, time);
+}
+
+function renderStaff(){
+  const tb = document.getElementById('staffRows');
+  if (!staff.length){ tb.innerHTML = '<tr><td colspan="8" class="empty">No staff yet — the owner assigns roles on the People page.</td></tr>'; return; }
+  tb.innerHTML = staff.map(s => '<tr>' +
+    '<td>' + esc(s.name) + '</td>' +
+    '<td><span class="pill pill-' + esc(s.role) + '">' + esc(s.role) + '</span></td>' +
+    '<td>' + (s.onClock ? '<span class="pill pill-on">On the clock</span>' : '<span class="muted">Off</span>') + '</td>' +
+    '<td class="num">' + s.hours + '</td>' +
+    '<td class="num">' + money(s.hourlyRate) + '</td>' +
+    '<td class="num">' + money(s.pay) + '</td>' +
+    '<td class="num">' + money(s.tips) + '</td>' +
+    '<td><input type="number" min="0" step="0.25" style="width:5.5rem" placeholder="$/hr" ' +
+      'value="' + (s.hourlyRate == null ? '' : s.hourlyRate) + '" ' +
+      'onchange="setRate(' + s.id + ', this)"></td>' +
+  '</tr>').join('');
+
+  const opts = staff.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
+  document.getElementById('shiftUser').innerHTML = opts;
+  document.getElementById('tipUser').innerHTML = opts;
+}
+
+function renderShifts(){
+  const rows = [];
+  staff.forEach(s => (s.shifts || []).forEach(sh => rows.push({ name: s.name, ...sh })));
+  rows.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const tb = document.getElementById('shiftRows');
+  if (!rows.length){ tb.innerHTML = '<tr><td colspan="5" class="empty">No shifts scheduled this month.</td></tr>'; return; }
+  tb.innerHTML = rows.map(r => '<tr>' +
+    '<td>' + esc(r.name) + '</td>' +
+    '<td class="muted">' + fmtDay(r.starts_at) + '</td>' +
+    '<td>' + fmtTime(r.starts_at) + ' &ndash; ' + fmtTime(r.ends_at) + '</td>' +
+    '<td class="muted">' + esc(r.note || '') + '</td>' +
+    '<td><button class="btn btn-ghost btn-sm" onclick="removeShift(' + r.id + ')">Remove</button></td>' +
+  '</tr>').join('');
+}
+
+function renderLog(){
+  const tb = document.getElementById('logRows');
+  if (!logEntries.length){ tb.innerHTML = '<tr><td colspan="7" class="empty">No punches recorded yet.</td></tr>'; return; }
+  tb.innerHTML = logEntries.map(e => {
+    const h = hours(e.clock_in, e.clock_out);
+    const flags = [];
+    if (!e.clock_out) flags.push('<span class="pill pill-on">Still on</span>');
+    if (e.created_by) flags.push('<span class="pill pill-flag">Added by manager</span>');
+    if (LOUNGE_IP && e.in_ip && e.in_ip !== LOUNGE_IP) flags.push('<span class="pill pill-flag">Off-network</span>');
+    return '<tr>' +
+      '<td>' + esc(e.name) + '</td>' +
+      '<td class="muted">' + fmtDay(e.clock_in) + '</td>' +
+      '<td>' + fmtTime(e.clock_in) + '</td>' +
+      '<td>' + (e.clock_out ? fmtTime(e.clock_out) : '<span class="muted">—</span>') + '</td>' +
+      '<td class="num">' + (h == null ? '—' : h) + '</td>' +
+      '<td>' + (flags.join(' ') || '<span class="muted">—</span>') + '</td>' +
+      '<td><button class="btn btn-ghost btn-sm" onclick="editEntry(' + e.id + ')">Edit</button></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function setRate(userId, el){
+  const v = el.value;
+  if (v === '') return;
+  el.disabled = true;
+  try { await authApi('/team/rate', { userId, hourlyRate: Number(v) }); flash('Rate saved.', 'ok'); await load(); }
+  catch (err){ flash(err.message, 'err'); el.disabled = false; }
+}
+
+async function addShift(){
+  const userId = Number(document.getElementById('shiftUser').value);
+  const date = document.getElementById('shiftDate').value;
+  const start = document.getElementById('shiftStart').value;
+  const end = document.getElementById('shiftEnd').value;
+  if (!userId || !date || !start || !end){ flash('Pick a person, a date, and both times.', 'err'); return; }
+  const startsAt = toInstant(date, start);
+  let endsAt = toInstant(date, end);
+  // An end time earlier than the start means the shift runs past midnight.
+  if (endsAt && startsAt && Date.parse(endsAt) <= Date.parse(startsAt)){
+    endsAt = new Date(Date.parse(endsAt) + 86400000).toISOString();
+  }
+  try {
+    await authApi('/team/shift', { userId, startsAt, endsAt, note: document.getElementById('shiftNote').value });
+    document.getElementById('shiftNote').value = '';
+    flash('Shift added.', 'ok');
+    await load();
+  } catch (err){ flash(err.message, 'err'); }
+}
+
+async function removeShift(id){
+  if (!confirm('Remove this shift?')) return;
+  try { await authApi('/team/shift', { remove: id }); flash('Shift removed.', 'ok'); await load(); }
+  catch (err){ flash(err.message, 'err'); }
+}
+
+async function addTip(){
+  const userId = Number(document.getElementById('tipUser').value);
+  const amount = Number(document.getElementById('tipAmount').value);
+  const forDay = document.getElementById('tipDate').value;
+  if (!userId || !amount){ flash('Pick a person and an amount.', 'err'); return; }
+  try {
+    await authApi('/team/tip', { userId, amount, forDay, note: document.getElementById('tipNote').value });
+    document.getElementById('tipAmount').value = '';
+    document.getElementById('tipNote').value = '';
+    flash('Tips added.', 'ok');
+    await load();
+  } catch (err){ flash(err.message, 'err'); }
+}
+
+async function editEntry(id){
+  const e = logEntries.find(x => x.id === id);
+  if (!e) return;
+  const inAt = prompt('Clock in (YYYY-MM-DD HH:MM, Pacific):', toLocalInput(e.clock_in));
+  if (inAt === null) return;
+  const outAt = prompt('Clock out (blank to leave them on the clock):', toLocalInput(e.clock_out));
+  if (outAt === null) return;
+  const reason = prompt('Reason for this change (required, recorded in the log):');
+  if (!reason) { flash('A reason is required.', 'err'); return; }
+  try {
+    await authApi('/team/entry', {
+      entryId: id,
+      clockIn: fromLocalInput(inAt),
+      clockOut: outAt.trim() ? fromLocalInput(outAt) : null,
+      reason
+    });
+    flash('Entry updated and logged.', 'ok');
+    await load();
+  } catch (err){ flash(err.message, 'err'); }
+}
+
+function toLocalInput(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(d);
+  const g = t => p.find(x => x.type === t).value;
+  return g('year') + '-' + g('month') + '-' + g('day') + ' ' + g('hour') + ':' + g('minute');
+}
+
+function fromLocalInput(s){
+  const t = s.trim().replace('T', ' ');
+  const m = /^(\d{4}-\d{2}-\d{2})[ ]+(\d{2}:\d{2})/.exec(t);
+  return m ? pacificToInstant(m[1], m[2]) : null;
+}
+
+async function load(){
+  month = month || thisMonth();
+  const [team, log] = await Promise.all([authApi('/team?month=' + month), authApi('/team/clocklog')]);
+  staff = team.staff || [];
+  logEntries = log.entries || [];
+  renderStaff(); renderShifts(); renderLog();
+  const [y, m] = month.split('-').map(Number);
+  document.getElementById('monthLabel').textContent =
+    new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { timeZone:'UTC', month:'long', year:'numeric' });
+  document.getElementById('meta').textContent = staff.length + ' on staff · times shown Pacific';
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+  if (!document.getElementById('shiftDate').value) document.getElementById('shiftDate').value = today;
+  if (!document.getElementById('tipDate').value) document.getElementById('tipDate').value = today;
+}
+
+staffBoot('manager', load);
+</script>

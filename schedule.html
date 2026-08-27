@@ -1,0 +1,152 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>My Schedule &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="staff.css">
+<link rel="stylesheet" href="auth.css">
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="index.html" class="nav-back">&#8592; Back to Site</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="page-eyebrow">My Shifts</div>
+    <h1 class="page-title">Your <em>Schedule</em></h1>
+    <div class="page-meta" id="meta">Loading&hellip;</div>
+  </div>
+
+  <div id="state"></div>
+
+  <div id="body" style="display:none">
+    <div class="msg" id="msg"></div>
+
+    <div class="clock-card">
+      <div>
+        <div class="clock-state" id="clockState">&mdash;</div>
+        <div class="clock-sub" id="clockSub"></div>
+      </div>
+      <button class="btn btn-clock" id="clockBtn" onclick="punch()">&mdash;</button>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-label">Hours This Month</div><div class="stat-value" id="sHours">&mdash;</div></div>
+      <div class="stat"><div class="stat-label">Hourly Rate</div><div class="stat-value" id="sRate">&mdash;</div></div>
+      <div class="stat"><div class="stat-label">Pay This Month</div><div class="stat-value" id="sPay">&mdash;</div></div>
+      <div class="stat"><div class="stat-label">Tips This Month</div><div class="stat-value" id="sTips">&mdash;</div></div>
+    </div>
+
+    <div class="section">
+      <div class="cal-head">
+        <button class="btn btn-ghost btn-sm" onclick="shiftMonth(-1)">&larr; Prev</button>
+        <div class="cal-month" id="calMonth"></div>
+        <button class="btn btn-ghost btn-sm" onclick="shiftMonth(1)">Next &rarr;</button>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="section-note" style="margin-top:.8rem;">Only your own shifts are shown here.</div>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="staff.js"></script>
+<script>
+let month = null;      // 'YYYY-MM'
+let onClock = null;
+
+function thisMonth(){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' })
+    .format(new Date()).slice(0, 7);
+}
+
+function shiftMonth(delta){
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  month = d.toISOString().slice(0, 7);
+  load();
+}
+
+function renderCalendar(shifts){
+  const [y, m] = month.split('-').map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const startDow = first.getUTCDay();
+  const todayKey = dayKey(new Date().toISOString());
+
+  // Group shifts by their Pacific calendar day.
+  const byDay = {};
+  shifts.forEach(s => {
+    const k = dayKey(s.starts_at);
+    (byDay[k] = byDay[k] || []).push(s);
+  });
+
+  const cells = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+    .map(d => '<div class="cal-dow">' + d + '</div>');
+
+  for (let i = 0; i < startDow; i++) cells.push('<div class="cal-day other"></div>');
+
+  for (let day = 1; day <= daysInMonth; day++){
+    const key = month + '-' + String(day).padStart(2, '0');
+    const mine = byDay[key] || [];
+    const chips = mine.map(s =>
+      '<span class="cal-shift">' + fmtTime(s.starts_at) + ' &ndash; ' + fmtTime(s.ends_at) +
+      (s.note ? '<small>' + esc(s.note) + '</small>' : '') + '</span>').join('');
+    cells.push('<div class="cal-day' + (key === todayKey ? ' today' : '') + '">' +
+      '<div class="cal-num">' + day + '</div>' + chips + '</div>');
+  }
+  document.getElementById('cal').innerHTML = cells.join('');
+
+  const label = new Date(Date.UTC(y, m - 1, 1))
+    .toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' });
+  document.getElementById('calMonth').textContent = label;
+}
+
+function renderClock(){
+  const btn = document.getElementById('clockBtn');
+  if (onClock){
+    document.getElementById('clockState').textContent = 'You are on the clock';
+    document.getElementById('clockSub').textContent = 'Since ' + fmtWhen(onClock.since);
+    btn.textContent = 'Clock Out';
+    btn.className = 'btn btn-clock btn-danger';
+  } else {
+    document.getElementById('clockState').textContent = 'You are clocked out';
+    document.getElementById('clockSub').textContent = 'Tap below when you start your shift.';
+    btn.textContent = 'Clock In';
+    btn.className = 'btn btn-clock';
+  }
+  btn.disabled = false;
+}
+
+async function punch(){
+  const btn = document.getElementById('clockBtn');
+  btn.disabled = true;
+  try {
+    const res = await authApi(onClock ? '/clock/out' : '/clock/in', {});
+    flash(onClock ? ('Clocked out — ' + res.hours + ' hours.') : 'Clocked in.', 'ok');
+    await load();
+  } catch (err){
+    flash(err.message, 'err');
+    btn.disabled = false;
+  }
+}
+
+async function load(){
+  month = month || thisMonth();
+  const d = await authApi('/me/status?month=' + month);
+  onClock = d.onClock;
+  renderClock();
+  renderCalendar(d.shifts || []);
+  document.getElementById('sHours').textContent = d.monthHours;
+  document.getElementById('sRate').textContent = d.hourlyRate == null ? '—' : money(d.hourlyRate);
+  document.getElementById('sPay').textContent = d.monthPay == null ? '—' : money(d.monthPay);
+  document.getElementById('sTips').textContent = money(d.monthTips || 0);
+  document.getElementById('meta').textContent = 'Signed in as ' + d.user.name + ' · times shown Pacific';
+}
+
+staffBoot('employee', load);
+</script>

@@ -248,6 +248,331 @@ async function handleStats(request, env){
   }, 200, request, env);
 }
 
+/* ── staff: roles, clock, schedules, pay ── */
+
+const ROLE_RANK = { customer: 0, employee: 1, manager: 2, owner: 3 };
+const ROLES = Object.keys(ROLE_RANK);
+
+function atLeast(user, role){
+  return user && (ROLE_RANK[user.role] || 0) >= ROLE_RANK[role];
+}
+
+/** Resolve the caller, or return the response to send back. */
+async function requireRole(request, env, role){
+  const user = await currentUser(request, env);
+  if (!user) return { error: json({ error: 'Not signed in.' }, 401, request, env) };
+  if (!atLeast(user, role)) return { error: json({ error: 'You do not have access to that.' }, 403, request, env) };
+  return { user };
+}
+
+async function audit(env, actor, action, targetUser, entityId, details){
+  await env.DB.prepare(
+    `INSERT INTO audit_log (actor_id, actor_role, action, target_user, entity_id, details, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(actor.id, actor.role, action, targetUser || null, entityId || null,
+         details || null, new Date().toISOString()).run();
+}
+
+function money(cents){ return cents == null ? null : cents / 100; }
+
+/** Hours between two ISO instants, rounded to two decimals. */
+function hoursBetween(a, b){
+  if (!a || !b) return 0;
+  return Math.max(0, Math.round(((Date.parse(b) - Date.parse(a)) / 3600000) * 100) / 100);
+}
+
+/* People (owner) */
+
+async function handlePeople(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  const r = await env.DB.prepare(
+    `SELECT id, name, email, role, hourly_rate_cents, created_at FROM users ORDER BY
+       CASE role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'employee' THEN 2 ELSE 3 END,
+       name COLLATE NOCASE`
+  ).all();
+  return json({
+    people: (r.results || []).map(u => ({
+      id: u.id, name: u.name, email: u.email, role: u.role,
+      hourlyRate: money(u.hourly_rate_cents), createdAt: u.created_at
+    }))
+  }, 200, request, env);
+}
+
+async function handleSetRole(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+  const userId = Number(body.userId);
+  const role = String(body.role || '');
+  if (!ROLES.includes(role)) return json({ error: 'Unknown role.' }, 400, request, env);
+  if (userId === got.user.id) return json({ error: 'You cannot change your own role.' }, 400, request, env);
+
+  const target = await env.DB.prepare('SELECT id, name, role FROM users WHERE id = ?').bind(userId).first();
+  if (!target) return json({ error: 'No such account.' }, 404, request, env);
+
+  await env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, userId).run();
+  await audit(env, got.user, 'role.set', userId, null, `${target.name}: ${target.role} → ${role}`);
+  return json({ ok: true }, 200, request, env);
+}
+
+/* Time clock (employee and up) */
+
+async function handleClockIn(request, env){
+  const got = await requireRole(request, env, 'employee');
+  if (got.error) return got.error;
+  const open = await env.DB.prepare(
+    'SELECT id FROM time_entries WHERE user_id = ? AND clock_out IS NULL'
+  ).bind(got.user.id).first();
+  if (open) return json({ error: 'You are already clocked in.' }, 409, request, env);
+
+  const now = new Date().toISOString();
+  const ip = request.headers.get('CF-Connecting-IP') || null;
+  const res = await env.DB.prepare(
+    'INSERT INTO time_entries (user_id, clock_in, in_ip, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(got.user.id, now, ip, now).run();
+  return json({ ok: true, entryId: res.meta.last_row_id, at: now }, 200, request, env);
+}
+
+async function handleClockOut(request, env){
+  const got = await requireRole(request, env, 'employee');
+  if (got.error) return got.error;
+  const open = await env.DB.prepare(
+    'SELECT id, clock_in FROM time_entries WHERE user_id = ? AND clock_out IS NULL ORDER BY clock_in DESC'
+  ).bind(got.user.id).first();
+  if (!open) return json({ error: 'You are not clocked in.' }, 409, request, env);
+
+  const now = new Date().toISOString();
+  await env.DB.prepare('UPDATE time_entries SET clock_out = ?, out_ip = ? WHERE id = ?')
+    .bind(now, request.headers.get('CF-Connecting-IP') || null, open.id).run();
+  return json({ ok: true, at: now, hours: hoursBetween(open.clock_in, now) }, 200, request, env);
+}
+
+/** An employee's own status, schedule and pay. Never anyone else's. */
+async function handleMyStatus(request, env){
+  const got = await requireRole(request, env, 'employee');
+  if (got.error) return got.error;
+  const me = got.user;
+
+  const open = await env.DB.prepare(
+    'SELECT id, clock_in FROM time_entries WHERE user_id = ? AND clock_out IS NULL ORDER BY clock_in DESC'
+  ).bind(me.id).first();
+
+  const url = new URL(request.url);
+  const month = (url.searchParams.get('month') || localDay(new Date()).slice(0, 7)).slice(0, 7);
+
+  const shifts = await env.DB.prepare(
+    `SELECT id, starts_at, ends_at, note FROM shifts
+      WHERE user_id = ? AND substr(starts_at, 1, 7) >= ? AND substr(starts_at, 1, 7) <= ?
+      ORDER BY starts_at`
+  ).bind(me.id, month, month).all();
+
+  const entries = await env.DB.prepare(
+    `SELECT clock_in, clock_out FROM time_entries
+      WHERE user_id = ? AND substr(clock_in, 1, 7) = ? ORDER BY clock_in DESC`
+  ).bind(me.id, month).all();
+
+  const tips = await env.DB.prepare(
+    `SELECT SUM(amount_cents) AS c FROM tips WHERE user_id = ? AND substr(for_day, 1, 7) = ?`
+  ).bind(me.id, month).first();
+
+  const rate = await env.DB.prepare('SELECT hourly_rate_cents FROM users WHERE id = ?').bind(me.id).first();
+  const hours = (entries.results || []).reduce((sum, e) => sum + hoursBetween(e.clock_in, e.clock_out), 0);
+
+  return json({
+    user: { id: me.id, name: me.name, role: me.role },
+    month,
+    onClock: open ? { since: open.clock_in } : null,
+    shifts: (shifts.results || []),
+    monthHours: Math.round(hours * 100) / 100,
+    hourlyRate: money(rate?.hourly_rate_cents),
+    monthPay: rate?.hourly_rate_cents ? Math.round(hours * rate.hourly_rate_cents) / 100 : null,
+    monthTips: money(tips?.c || 0)
+  }, 200, request, env);
+}
+
+/* Manager views */
+
+async function handleTeam(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const url = new URL(request.url);
+  const month = (url.searchParams.get('month') || localDay(new Date()).slice(0, 7)).slice(0, 7);
+
+  const staff = await env.DB.prepare(
+    `SELECT id, name, email, role, hourly_rate_cents FROM users
+      WHERE role IN ('employee','manager','owner') ORDER BY name COLLATE NOCASE`
+  ).all();
+
+  const rows = [];
+  for (const u of (staff.results || [])){
+    const entries = await env.DB.prepare(
+      `SELECT id, clock_in, clock_out, in_ip, out_ip, note FROM time_entries
+        WHERE user_id = ? AND substr(clock_in, 1, 7) = ? ORDER BY clock_in DESC`
+    ).bind(u.id, month).all();
+    const tips = await env.DB.prepare(
+      'SELECT SUM(amount_cents) AS c FROM tips WHERE user_id = ? AND substr(for_day, 1, 7) = ?'
+    ).bind(u.id, month).first();
+    const shifts = await env.DB.prepare(
+      `SELECT id, starts_at, ends_at, note FROM shifts
+        WHERE user_id = ? AND substr(starts_at, 1, 7) = ? ORDER BY starts_at`
+    ).bind(u.id, month).all();
+
+    const list = entries.results || [];
+    const hours = list.reduce((s, e) => s + hoursBetween(e.clock_in, e.clock_out), 0);
+    rows.push({
+      id: u.id, name: u.name, email: u.email, role: u.role,
+      hourlyRate: money(u.hourly_rate_cents),
+      onClock: list.some(e => !e.clock_out),
+      hours: Math.round(hours * 100) / 100,
+      pay: u.hourly_rate_cents ? Math.round(hours * u.hourly_rate_cents) / 100 : null,
+      tips: money(tips?.c || 0),
+      entries: list,
+      shifts: shifts.results || []
+    });
+  }
+  return json({ month, staff: rows }, 200, request, env);
+}
+
+async function handleSetRate(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+  const userId = Number(body.userId);
+  const rate = Number(body.hourlyRate);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 1000) {
+    return json({ error: 'Enter an hourly rate between 0 and 1000.' }, 400, request, env);
+  }
+  const target = await env.DB.prepare('SELECT id, name, hourly_rate_cents FROM users WHERE id = ?').bind(userId).first();
+  if (!target) return json({ error: 'No such account.' }, 404, request, env);
+
+  const cents = Math.round(rate * 100);
+  await env.DB.prepare('UPDATE users SET hourly_rate_cents = ? WHERE id = ?').bind(cents, userId).run();
+  await audit(env, got.user, 'rate.set', userId, null,
+    `${target.name}: $${money(target.hourly_rate_cents) ?? '—'}/hr → $${rate.toFixed(2)}/hr`);
+  return json({ ok: true }, 200, request, env);
+}
+
+async function handleShift(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+
+  if (body.remove){
+    const s = await env.DB.prepare(
+      'SELECT s.id, s.starts_at, u.name FROM shifts s JOIN users u ON u.id = s.user_id WHERE s.id = ?'
+    ).bind(Number(body.remove)).first();
+    if (!s) return json({ error: 'No such shift.' }, 404, request, env);
+    await env.DB.prepare('DELETE FROM shifts WHERE id = ?').bind(s.id).run();
+    await audit(env, got.user, 'shift.delete', null, s.id, `Removed ${s.name}'s shift on ${s.starts_at.slice(0, 10)}`);
+    return json({ ok: true }, 200, request, env);
+  }
+
+  const userId = Number(body.userId);
+  const starts = String(body.startsAt || '');
+  const ends = String(body.endsAt || '');
+  if (!userId || !starts || !ends) return json({ error: 'Pick a person, a start and an end.' }, 400, request, env);
+  if (Date.parse(ends) <= Date.parse(starts)) return json({ error: 'The shift must end after it starts.' }, 400, request, env);
+
+  const target = await env.DB.prepare('SELECT id, name FROM users WHERE id = ?').bind(userId).first();
+  if (!target) return json({ error: 'No such account.' }, 404, request, env);
+
+  const now = new Date().toISOString();
+  const res = await env.DB.prepare(
+    'INSERT INTO shifts (user_id, starts_at, ends_at, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(userId, starts, ends, String(body.note || '').slice(0, 200) || null, got.user.id, now).run();
+
+  await audit(env, got.user, 'shift.create', userId, res.meta.last_row_id,
+    `${target.name}: ${starts.slice(0, 16).replace('T', ' ')} → ${ends.slice(11, 16)} UTC`);
+  return json({ ok: true, id: res.meta.last_row_id }, 200, request, env);
+}
+
+async function handleTip(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+  const userId = Number(body.userId);
+  const amount = Number(body.amount);
+  const day = String(body.forDay || localDay(new Date())).slice(0, 10);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) {
+    return json({ error: 'Enter a tip amount greater than zero.' }, 400, request, env);
+  }
+  const target = await env.DB.prepare('SELECT id, name FROM users WHERE id = ?').bind(userId).first();
+  if (!target) return json({ error: 'No such account.' }, 404, request, env);
+
+  const now = new Date().toISOString();
+  const res = await env.DB.prepare(
+    'INSERT INTO tips (user_id, amount_cents, for_day, note, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(userId, Math.round(amount * 100), day, String(body.note || '').slice(0, 200) || null, got.user.id, now).run();
+
+  await audit(env, got.user, 'tip.add', userId, res.meta.last_row_id,
+    `${target.name}: $${amount.toFixed(2)} for ${day}`);
+  return json({ ok: true }, 200, request, env);
+}
+
+/** Manager corrects a punch. The old value is always kept. */
+async function handleEditEntry(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+  const entry = await env.DB.prepare(
+    'SELECT t.*, u.name FROM time_entries t JOIN users u ON u.id = t.user_id WHERE t.id = ?'
+  ).bind(Number(body.entryId)).first();
+  if (!entry) return json({ error: 'No such time entry.' }, 404, request, env);
+
+  const reason = String(body.reason || '').slice(0, 200);
+  if (!reason) return json({ error: 'Give a reason for the change.' }, 400, request, env);
+
+  const now = new Date().toISOString();
+  const changes = [];
+  for (const field of ['clock_in', 'clock_out']){
+    const key = field === 'clock_in' ? 'clockIn' : 'clockOut';
+    if (body[key] === undefined) continue;
+    const next = body[key] ? String(body[key]) : null;
+    if (next === entry[field]) continue;
+    if (next && Number.isNaN(Date.parse(next))) {
+      return json({ error: 'That time is not valid.' }, 400, request, env);
+    }
+    await env.DB.prepare(`UPDATE time_entries SET ${field} = ? WHERE id = ?`).bind(next, entry.id).run();
+    await env.DB.prepare(
+      'INSERT INTO time_edits (entry_id, editor_id, field, old_value, new_value, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(entry.id, got.user.id, field, entry[field], next, reason, now).run();
+    changes.push(`${field} ${entry[field] || '—'} → ${next || '—'}`);
+  }
+
+  if (!changes.length) return json({ ok: true, unchanged: true }, 200, request, env);
+  await audit(env, got.user, 'punch.edit', entry.user_id, entry.id,
+    `${entry.name}: ${changes.join('; ')} (${reason})`);
+  return json({ ok: true }, 200, request, env);
+}
+
+/** Manager's log: who clocked in and out, most recent first. */
+async function handleClockLog(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const r = await env.DB.prepare(
+    `SELECT t.id, t.user_id, u.name, t.clock_in, t.clock_out, t.in_ip, t.out_ip, t.created_by
+       FROM time_entries t JOIN users u ON u.id = t.user_id
+      ORDER BY t.clock_in DESC LIMIT 300`
+  ).all();
+  return json({ entries: r.results || [] }, 200, request, env);
+}
+
+/** Owner's log: everything managers (and the owner) did. */
+async function handleAudit(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  const r = await env.DB.prepare(
+    `SELECT a.id, a.action, a.details, a.created_at, a.actor_role,
+            actor.name AS actor_name, target.name AS target_name
+       FROM audit_log a
+       JOIN users actor ON actor.id = a.actor_id
+       LEFT JOIN users target ON target.id = a.target_user
+      ORDER BY a.created_at DESC LIMIT 400`
+  ).all();
+  return json({ log: r.results || [] }, 200, request, env);
+}
+
 /* ── handlers ── */
 
 async function handleRegister(request, env){
@@ -267,7 +592,8 @@ async function handleRegister(request, env){
   const salt = randomHex(16);
   const hash = await hashPassword(password, salt, PBKDF2_ITERATIONS);
   const owner = normalizeEmail(env.OWNER_EMAIL || '');
-  const role = owner && email === owner ? 'owner' : 'member';
+  // Everyone starts as a customer; the owner promotes people by hand.
+  const role = owner && email === owner ? 'owner' : 'customer';
   const now = new Date().toISOString();
 
   const res = await env.DB.prepare(
@@ -358,6 +684,20 @@ export default {
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
       if (url.pathname === '/track'         && request.method === 'POST') return await handleTrack(request, env);
       if (url.pathname === '/stats'         && request.method === 'GET')  return await handleStats(request, env);
+
+      // staff
+      if (url.pathname === '/people'        && request.method === 'GET')  return await handlePeople(request, env);
+      if (url.pathname === '/people/role'   && request.method === 'POST') return await handleSetRole(request, env);
+      if (url.pathname === '/audit'         && request.method === 'GET')  return await handleAudit(request, env);
+      if (url.pathname === '/clock/in'      && request.method === 'POST') return await handleClockIn(request, env);
+      if (url.pathname === '/clock/out'     && request.method === 'POST') return await handleClockOut(request, env);
+      if (url.pathname === '/me/status'     && request.method === 'GET')  return await handleMyStatus(request, env);
+      if (url.pathname === '/team'          && request.method === 'GET')  return await handleTeam(request, env);
+      if (url.pathname === '/team/rate'     && request.method === 'POST') return await handleSetRate(request, env);
+      if (url.pathname === '/team/shift'    && request.method === 'POST') return await handleShift(request, env);
+      if (url.pathname === '/team/tip'      && request.method === 'POST') return await handleTip(request, env);
+      if (url.pathname === '/team/entry'    && request.method === 'POST') return await handleEditEntry(request, env);
+      if (url.pathname === '/team/clocklog' && request.method === 'GET')  return await handleClockLog(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);
