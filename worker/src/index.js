@@ -662,6 +662,15 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     }
 
+    // Open this from the lounge wifi to learn the address to put in
+    // LOUNGE_IP, exactly as Cloudflare sees it.
+    if (url.pathname === '/whoami'){
+      return json({
+        ip: request.headers.get('CF-Connecting-IP'),
+        note: 'Open this on the lounge wifi to get the address for off-network flagging.'
+      }, 200, request, env);
+    }
+
     // Health check: confirms the D1 binding and tables without touching auth.
     if (url.pathname === '/auth/health'){
       if (!env.DB) return json({ ok: false, error: 'No D1 binding named DB on this deployment.' }, 500, request, env);
