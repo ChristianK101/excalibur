@@ -1,5 +1,19 @@
 # Excalibur account service
 
+## Deploying
+
+Once the repo is connected under the worker's **Settings → Build**, every push
+to `main` that touches this directory redeploys the worker automatically. Set
+**Root directory** to `worker` so Cloudflare finds `wrangler.jsonc`.
+
+`OWNER_EMAIL` stays a dashboard secret — secrets are not stored in this file
+and survive redeploys. `ALLOWED_ORIGINS` and the `DB` binding come from
+`wrangler.jsonc`, so change them there rather than in the dashboard.
+
+To deploy by hand instead: paste `src/index.js` into the worker's editor and
+click Deploy.
+
+
 The Sign Up / Sign In control in the site navigation talks to this Worker.
 **Until it is deployed, the buttons appear but signing up returns an error** —
 the front end tells the visitor the account service can't be reached.
