@@ -1,4 +1,5 @@
 {
+  // Deployed from this repo by Cloudflare Workers Builds.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "excalibur-auth",
   "main": "src/index.js",
