@@ -89,8 +89,9 @@
         <label class="field">Counted as at work within
           <input type="number" id="radiusInput" min="25" max="5000" step="25" value="150" style="width:7rem"> m
         </label>
-        <button class="btn" onclick="saveLocation()">Use My Current Location</button>
+        <button class="btn" onclick="saveLocation(this)">Use My Current Location</button>
       </div>
+      <div class="section-note" id="locationStatus" style="min-height:1.2em"></div>
       <div class="section-note">
         Stand inside the lounge and tap this once. Punches then record how far away they were.
         Only the distance is stored &mdash; never anyone&rsquo;s coordinates.
@@ -307,20 +308,51 @@ function renderLocationBar(){
     : 'Not set yet · punches record no distance';
 }
 
-async function saveLocation(){
+/* Status goes right under the button - this section sits far down the page,
+   so a message at the top would never be seen. */
+function locationStatus(text, bad){
+  const el = document.getElementById('locationStatus');
+  if (el){
+    el.textContent = text;
+    el.style.color = bad ? '#f08080' : 'var(--gold-light)';
+  }
+  if (text) flash(text, bad ? 'err' : 'ok');
+}
+
+function saveLocation(btn){
   const radius = Number(document.getElementById('radiusInput').value) || 150;
-  flash('Getting your location…', 'ok');
+
+  if (!navigator.geolocation){
+    locationStatus('This browser will not share a location.', true);
+    return;
+  }
+  if (btn){ btn.disabled = true; btn.textContent = 'Getting location…'; }
+  locationStatus('Asking your phone for its location — approve the prompt…');
+
+  const done = (text, bad) => {
+    locationStatus(text, bad);
+    if (btn){ btn.disabled = false; btn.textContent = 'Use My Current Location'; }
+  };
+
   navigator.geolocation.getCurrentPosition(async pos => {
     try {
       await authApi('/team/location', {
         lat: pos.coords.latitude, lng: pos.coords.longitude, radius
       });
-      flash('Lounge location saved (accurate to about ' + Math.round(pos.coords.accuracy) + ' m).', 'ok');
+      done('Saved — this spot is now the lounge, accurate to about ' +
+           Math.round(pos.coords.accuracy) + ' m. Radius ' + radius + ' m.');
       await load();
-    } catch (err){ flash(err.message, 'err'); }
+    } catch (err){
+      done('Could not save: ' + err.message, true);
+    }
   }, err => {
-    flash('Could not get your location: ' + err.message, 'err');
-  }, { enableHighAccuracy: true, timeout: 10000 });
+    const why = err.code === 1
+      ? 'You declined the location prompt. Allow location for this site in Settings → Apps → Safari → Location, then try again.'
+      : err.code === 3
+        ? 'Timed out getting a fix. Try again near a window.'
+        : 'Could not get your location: ' + err.message;
+    done(why, true);
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
 async function load(){
