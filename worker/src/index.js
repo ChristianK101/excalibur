@@ -318,6 +318,38 @@ async function handleSetRole(request, env){
 
 /* Time clock (employee and up) */
 
+async function getSetting(env, key){
+  const r = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first();
+  return r ? r.value : null;
+}
+
+/** Metres between two points on the earth. */
+function metresBetween(lat1, lon1, lat2, lon2){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+/**
+ * How far the punch was from the lounge, in metres, plus the phone's own
+ * accuracy estimate. Returns nulls when we can't tell. The coordinates
+ * themselves are never stored or returned - only the distance.
+ */
+async function punchDistance(env, body){
+  const lat = Number(body.lat), lng = Number(body.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { distance: null, accuracy: null };
+  const slat = Number(await getSetting(env, 'lounge_lat'));
+  const slng = Number(await getSetting(env, 'lounge_lng'));
+  if (!Number.isFinite(slat) || !Number.isFinite(slng)) return { distance: null, accuracy: null };
+  const accuracy = Number.isFinite(Number(body.accuracy))
+    ? Math.min(99999, Math.round(Number(body.accuracy))) : null;
+  return { distance: metresBetween(lat, lng, slat, slng), accuracy };
+}
+
 async function handleClockIn(request, env){
   const got = await requireRole(request, env, 'employee');
   if (got.error) return got.error;
@@ -326,12 +358,15 @@ async function handleClockIn(request, env){
   ).bind(got.user.id).first();
   if (open) return json({ error: 'You are already clocked in.' }, 409, request, env);
 
+  const body = await request.json().catch(() => ({}));
+  const { distance, accuracy } = await punchDistance(env, body);
   const now = new Date().toISOString();
   const ip = request.headers.get('CF-Connecting-IP') || null;
   const res = await env.DB.prepare(
-    'INSERT INTO time_entries (user_id, clock_in, in_ip, created_at) VALUES (?, ?, ?, ?)'
-  ).bind(got.user.id, now, ip, now).run();
-  return json({ ok: true, entryId: res.meta.last_row_id, at: now }, 200, request, env);
+    `INSERT INTO time_entries (user_id, clock_in, in_ip, in_distance_m, in_accuracy_m, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(got.user.id, now, ip, distance, accuracy, now).run();
+  return json({ ok: true, entryId: res.meta.last_row_id, at: now, distance }, 200, request, env);
 }
 
 async function handleClockOut(request, env){
@@ -342,10 +377,37 @@ async function handleClockOut(request, env){
   ).bind(got.user.id).first();
   if (!open) return json({ error: 'You are not clocked in.' }, 409, request, env);
 
+  const body = await request.json().catch(() => ({}));
+  const { distance, accuracy } = await punchDistance(env, body);
   const now = new Date().toISOString();
-  await env.DB.prepare('UPDATE time_entries SET clock_out = ?, out_ip = ? WHERE id = ?')
-    .bind(now, request.headers.get('CF-Connecting-IP') || null, open.id).run();
-  return json({ ok: true, at: now, hours: hoursBetween(open.clock_in, now) }, 200, request, env);
+  await env.DB.prepare(
+    'UPDATE time_entries SET clock_out = ?, out_ip = ?, out_distance_m = ?, out_accuracy_m = ? WHERE id = ?'
+  ).bind(now, request.headers.get('CF-Connecting-IP') || null, distance, accuracy, open.id).run();
+  return json({ ok: true, at: now, hours: hoursBetween(open.clock_in, now), distance }, 200, request, env);
+}
+
+/** Owner stands in the lounge and saves its coordinates once. */
+async function handleSetLocation(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+  const lat = Number(body.lat), lng = Number(body.lng);
+  const radius = Number(body.radius);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180){
+    return json({ error: 'That location does not look right.' }, 400, request, env);
+  }
+  const now = new Date().toISOString();
+  const put = async (k, v) => env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+       updated_by = excluded.updated_by, updated_at = excluded.updated_at`
+  ).bind(k, String(v), got.user.id, now).run();
+
+  await put('lounge_lat', lat);
+  await put('lounge_lng', lng);
+  if (Number.isFinite(radius) && radius >= 25 && radius <= 5000) await put('lounge_radius_m', Math.round(radius));
+  await audit(env, got.user, 'location.set', null, null, 'Lounge location updated');
+  return json({ ok: true }, 200, request, env);
 }
 
 /** An employee's own status, schedule and pay. Never anyone else's. */
@@ -551,11 +613,16 @@ async function handleClockLog(request, env){
   const got = await requireRole(request, env, 'manager');
   if (got.error) return got.error;
   const r = await env.DB.prepare(
-    `SELECT t.id, t.user_id, u.name, t.clock_in, t.clock_out, t.in_ip, t.out_ip, t.created_by
+    `SELECT t.id, t.user_id, u.name, t.clock_in, t.clock_out, t.in_ip, t.out_ip, t.created_by,
+            t.in_distance_m, t.in_accuracy_m, t.out_distance_m, t.out_accuracy_m
        FROM time_entries t JOIN users u ON u.id = t.user_id
       ORDER BY t.clock_in DESC LIMIT 300`
   ).all();
-  return json({ entries: r.results || [] }, 200, request, env);
+  return json({
+    entries: r.results || [],
+    locationSet: !!(await getSetting(env, 'lounge_lat')),
+    radiusM: Number(await getSetting(env, 'lounge_radius_m')) || 150
+  }, 200, request, env);
 }
 
 /** Owner's log: everything managers (and the owner) did. */
@@ -707,6 +774,7 @@ export default {
       if (url.pathname === '/team/tip'      && request.method === 'POST') return await handleTip(request, env);
       if (url.pathname === '/team/entry'    && request.method === 'POST') return await handleEditEntry(request, env);
       if (url.pathname === '/team/clocklog' && request.method === 'GET')  return await handleClockLog(request, env);
+      if (url.pathname === '/team/location' && request.method === 'POST') return await handleSetLocation(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);

@@ -122,15 +122,42 @@ function renderClock(){
   btn.disabled = false;
 }
 
+/* Ask the phone where it is, but never let that hold up a punch: if the
+   employee declines or GPS is slow, we clock them in without it and the
+   manager simply sees no location on that entry. */
+function getPosition(){
+  return new Promise(resolve => {
+    if (!navigator.geolocation) return resolve({});
+    let done = false;
+    const finish = v => { if (!done){ done = true; resolve(v); } };
+    setTimeout(() => finish({}), 8000);
+    navigator.geolocation.getCurrentPosition(
+      pos => finish({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      }),
+      () => finish({}),
+      { enableHighAccuracy: true, timeout: 7000, maximumAge: 30000 }
+    );
+  });
+}
+
 async function punch(){
   const btn = document.getElementById('clockBtn');
+  const original = btn.textContent;
   btn.disabled = true;
+  btn.textContent = 'Checking location…';
   try {
-    const res = await authApi(onClock ? '/clock/out' : '/clock/in', {});
-    flash(onClock ? ('Clocked out — ' + res.hours + ' hours.') : 'Clocked in.', 'ok');
+    const where = await getPosition();
+    btn.textContent = original;
+    const res = await authApi(onClock ? '/clock/out' : '/clock/in', where);
+    const near = res.distance == null ? '' : ' (' + res.distance + ' m from the lounge)';
+    flash(onClock ? ('Clocked out — ' + res.hours + ' hours.' + near) : ('Clocked in.' + near), 'ok');
     await load();
   } catch (err){
     flash(err.message, 'err');
+    btn.textContent = original;
     btn.disabled = false;
   }
 }

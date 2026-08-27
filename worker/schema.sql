@@ -135,3 +135,21 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_id, created_at);
+
+-- Small key/value store. Holds the lounge's coordinates and the radius
+-- counted as "at work", set from the Team page while standing in the lounge.
+CREATE TABLE IF NOT EXISTS settings (
+  key         TEXT PRIMARY KEY,
+  value       TEXT NOT NULL,
+  updated_by  INTEGER REFERENCES users(id),
+  updated_at  TEXT NOT NULL
+);
+
+-- How far from the lounge each punch was, in metres, with the phone's own
+-- estimate of how confident it is. Coordinates are deliberately NOT stored:
+-- the distance answers "were they at work", without tracking anyone.
+-- Ignore "duplicate column name" if you run these twice.
+ALTER TABLE time_entries ADD COLUMN in_distance_m INTEGER;
+ALTER TABLE time_entries ADD COLUMN in_accuracy_m INTEGER;
+ALTER TABLE time_entries ADD COLUMN out_distance_m INTEGER;
+ALTER TABLE time_entries ADD COLUMN out_accuracy_m INTEGER;

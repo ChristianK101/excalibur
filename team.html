@@ -80,6 +80,23 @@
       </div>
     </div>
 
+    <div class="section" id="locationSection" style="display:none">
+      <div class="section-head">
+        <div class="section-title">Lounge Location</div>
+        <div class="section-note" id="locationNote"></div>
+      </div>
+      <div class="form-row">
+        <label class="field">Counted as at work within
+          <input type="number" id="radiusInput" min="25" max="5000" step="25" value="150" style="width:7rem"> m
+        </label>
+        <button class="btn" onclick="saveLocation()">Use My Current Location</button>
+      </div>
+      <div class="section-note">
+        Stand inside the lounge and tap this once. Punches then record how far away they were.
+        Only the distance is stored &mdash; never anyone&rsquo;s coordinates.
+      </div>
+    </div>
+
     <div class="section">
       <div class="section-head">
         <div class="section-title">Clock Log</div>
@@ -101,6 +118,8 @@
 let month = null;
 let staff = [];
 let logEntries = [];
+let locationSet = false;
+let radiusM = 150;
 
 // The lounge's networks. Punches from anywhere else get an "Off-network"
 // badge - nobody is blocked, it is only a flag worth a glance.
@@ -174,6 +193,14 @@ function renderLog(){
     if (!e.clock_out) flags.push('<span class="pill pill-on">Still on</span>');
     if (e.created_by) flags.push('<span class="pill pill-flag">Added by manager</span>');
     if (!onLoungeNetwork(e.in_ip, LOUNGE_NETWORKS)) flags.push('<span class="pill pill-flag">Off-network</span>');
+    // Location: only judge it when the reading is confident enough to mean something.
+    if (locationSet){
+      const d = e.in_distance_m, acc = e.in_accuracy_m;
+      if (d == null) flags.push('<span class="pill pill-customer">No location</span>');
+      else if (acc != null && acc > 500) flags.push('<span class="pill pill-customer">Location unclear</span>');
+      else if (d > radiusM) flags.push('<span class="pill pill-flag">Off-site ' + d + ' m</span>');
+      else flags.push('<span class="pill pill-employee">At lounge</span>');
+    }
     return '<tr>' +
       '<td>' + esc(e.name) + '</td>' +
       '<td class="muted">' + fmtDay(e.clock_in) + '</td>' +
@@ -270,11 +297,40 @@ function fromLocalInput(s){
   return m ? pacificToInstant(m[1], m[2]) : null;
 }
 
+function renderLocationBar(){
+  // Only the owner can set it, so only the owner sees the control.
+  const sec = document.getElementById('locationSection');
+  sec.style.display = (authUser && authUser.role === 'owner') ? '' : 'none';
+  document.getElementById('radiusInput').value = radiusM;
+  document.getElementById('locationNote').textContent = locationSet
+    ? 'Set · punches are measured against it'
+    : 'Not set yet · punches record no distance';
+}
+
+async function saveLocation(){
+  const radius = Number(document.getElementById('radiusInput').value) || 150;
+  flash('Getting your location…', 'ok');
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      await authApi('/team/location', {
+        lat: pos.coords.latitude, lng: pos.coords.longitude, radius
+      });
+      flash('Lounge location saved (accurate to about ' + Math.round(pos.coords.accuracy) + ' m).', 'ok');
+      await load();
+    } catch (err){ flash(err.message, 'err'); }
+  }, err => {
+    flash('Could not get your location: ' + err.message, 'err');
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
 async function load(){
   month = month || thisMonth();
   const [team, log] = await Promise.all([authApi('/team?month=' + month), authApi('/team/clocklog')]);
   staff = team.staff || [];
   logEntries = log.entries || [];
+  locationSet = !!log.locationSet;
+  radiusM = log.radiusM || 150;
+  renderLocationBar();
   renderStaff(); renderShifts(); renderLog();
   const [y, m] = month.split('-').map(Number);
   document.getElementById('monthLabel').textContent =
