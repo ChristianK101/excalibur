@@ -608,6 +608,118 @@ async function handleEditEntry(request, env){
   return json({ ok: true }, 200, request, env);
 }
 
+/* ── payroll ── */
+
+/** Sunday-start workweek key for a Pacific calendar day. */
+function weekKey(day){
+  const d = new Date(day + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * California overtime split for ONE workweek.
+ *   over 8 in a day  -> 1.5x        over 12 in a day -> 2x
+ *   over 40 straight-time in a week -> 1.5x
+ *   7th consecutive day worked: first 8 at 1.5x, beyond at 2x
+ */
+function splitWeek(days){
+  const worked = days.filter(d => d.hours > 0).sort((a, b) => a.day.localeCompare(b.day));
+  const seventh = worked.length === 7 ? worked[6].day : null;
+  let regular = 0, ot = 0, dt = 0;
+
+  for (const d of worked){
+    if (d.day === seventh){
+      ot += Math.min(d.hours, 8);
+      dt += Math.max(0, d.hours - 8);
+    } else {
+      regular += Math.min(d.hours, 8);
+      ot += Math.min(Math.max(0, d.hours - 8), 4);
+      dt += Math.max(0, d.hours - 12);
+    }
+  }
+  if (regular > 40){ ot += regular - 40; regular = 40; }
+  const r = n => Math.round(n * 100) / 100;
+  return { regular: r(regular), ot: r(ot), dt: r(dt) };
+}
+
+/**
+ * Gross pay for a date range: hours split into regular/overtime/double time,
+ * priced at the person's rate, plus tips recorded in the same period.
+ * Tips are never marked up by an overtime multiplier - they are not wages.
+ */
+async function handlePayroll(request, env){
+  const got = await requireRole(request, env, 'manager');
+  if (got.error) return got.error;
+  const url = new URL(request.url);
+  const from = (url.searchParams.get('from') || daysAgo(13)).slice(0, 10);
+  const to = (url.searchParams.get('to') || localDay(new Date())).slice(0, 10);
+
+  const staff = await env.DB.prepare(
+    `SELECT id, name, role, hourly_rate_cents FROM users
+      WHERE role IN ('employee','manager','owner') ORDER BY name COLLATE NOCASE`
+  ).all();
+
+  const rows = [];
+  for (const u of (staff.results || [])){
+    const entries = await env.DB.prepare(
+      `SELECT clock_in, clock_out FROM time_entries
+        WHERE user_id = ? AND clock_out IS NOT NULL ORDER BY clock_in`
+    ).bind(u.id).all();
+
+    // Bucket completed shifts into Pacific calendar days inside the range.
+    const byDay = {};
+    let openShift = false;
+    for (const e of (entries.results || [])){
+      const day = localDay(new Date(e.clock_in));
+      if (day < from || day > to) continue;
+      byDay[day] = (byDay[day] || 0) + hoursBetween(e.clock_in, e.clock_out);
+    }
+
+    const stillOn = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM time_entries WHERE user_id = ? AND clock_out IS NULL'
+    ).bind(u.id).first();
+    openShift = (stillOn?.n || 0) > 0;
+
+    // Split per workweek, then add the weeks together.
+    const weeks = {};
+    for (const [day, hours] of Object.entries(byDay)){
+      (weeks[weekKey(day)] = weeks[weekKey(day)] || []).push({ day, hours });
+    }
+    let regular = 0, ot = 0, dt = 0;
+    for (const days of Object.values(weeks)){
+      const s = splitWeek(days);
+      regular += s.regular; ot += s.ot; dt += s.dt;
+    }
+
+    const tips = await env.DB.prepare(
+      'SELECT SUM(amount_cents) AS c FROM tips WHERE user_id = ? AND for_day BETWEEN ? AND ?'
+    ).bind(u.id, from, to).first();
+
+    const rate = u.hourly_rate_cents;
+    const cents = rate ? Math.round(regular * rate + ot * rate * 1.5 + dt * rate * 2) : null;
+    const tipCents = tips?.c || 0;
+    const round = n => Math.round(n * 100) / 100;
+
+    rows.push({
+      id: u.id, name: u.name, role: u.role,
+      hourlyRate: money(rate),
+      regularHours: round(regular), otHours: round(ot), dtHours: round(dt),
+      totalHours: round(regular + ot + dt),
+      grossWages: money(cents),
+      tips: money(tipCents),
+      total: cents == null ? null : money(cents + tipCents),
+      openShift,
+      missingRate: !rate
+    });
+  }
+
+  return json({
+    from, to, workweek: 'Sunday to Saturday', timezone: 'America/Los_Angeles',
+    staff: rows
+  }, 200, request, env);
+}
+
 /** Manager's log: who clocked in and out, most recent first. */
 async function handleClockLog(request, env){
   const got = await requireRole(request, env, 'manager');
@@ -775,6 +887,7 @@ export default {
       if (url.pathname === '/team/entry'    && request.method === 'POST') return await handleEditEntry(request, env);
       if (url.pathname === '/team/clocklog' && request.method === 'GET')  return await handleClockLog(request, env);
       if (url.pathname === '/team/location' && request.method === 'POST') return await handleSetLocation(request, env);
+      if (url.pathname === '/payroll'       && request.method === 'GET')  return await handlePayroll(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);

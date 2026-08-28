@@ -1,0 +1,173 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Payroll &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="staff.css">
+<link rel="stylesheet" href="auth.css">
+<style>
+tfoot td{border-top:1px solid rgba(201,168,76,.3);font-weight:600;color:var(--gold-light);padding-top:.8rem;}
+.warn{background:rgba(220,80,80,.08);border:1px solid rgba(220,80,80,.35);padding:.8rem 1rem;font-size:.75rem;color:#f0a0a0;margin-bottom:1.2rem;}
+.note-box{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);padding:1rem 1.2rem;font-size:.73rem;color:var(--cream-dim);line-height:1.7;}
+.note-box strong{color:var(--gold);}
+</style>
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="team.html" class="nav-back">&#8592; Team</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="page-eyebrow">Manager</div>
+    <h1 class="page-title">Pay <em>Period</em></h1>
+    <div class="page-meta" id="meta">Loading&hellip;</div>
+  </div>
+
+  <div id="state"></div>
+
+  <div id="body" style="display:none">
+    <div class="msg" id="msg"></div>
+
+    <div class="form-row">
+      <label class="field">From<input type="date" id="fromDate"></label>
+      <label class="field">To<input type="date" id="toDate"></label>
+      <button class="btn" onclick="load()">Show</button>
+      <button class="btn btn-ghost" onclick="preset(0)">This Week</button>
+      <button class="btn btn-ghost" onclick="preset(1)">Last Week</button>
+      <button class="btn btn-ghost" onclick="preset(2)">Last 2 Weeks</button>
+    </div>
+
+    <div id="warnings"></div>
+
+    <div class="section">
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Name</th>
+            <th class="num">Regular</th>
+            <th class="num">OT &times;1.5</th>
+            <th class="num">DT &times;2</th>
+            <th class="num">Total Hrs</th>
+            <th class="num">Rate</th>
+            <th class="num">Wages</th>
+            <th class="num">Tips</th>
+            <th class="num">Total</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+          <tfoot id="foot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <strong>How these are worked out.</strong> Hours come from completed clock entries, in Pacific time.
+      California overtime is applied per workweek (Sunday to Saturday): over 8 hours in a day at 1.5&times;,
+      over 12 at 2&times;, over 40 straight-time hours in a week at 1.5&times;, and a seventh consecutive
+      workday at 1.5&times; for the first 8 hours then 2&times;.
+      <br><br>
+      <strong>Tips</strong> are what a manager entered for days in this range. They are paid on top and are
+      never multiplied by an overtime rate, because they are not wages.
+      <br><br>
+      <strong>This is a gross figure.</strong> No tax, withholding, or deductions are calculated here &mdash;
+      that is for your payroll provider. Meal and rest break premiums are not included either.
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="staff.js"></script>
+<script>
+function isoDay(d){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
+}
+
+/** 0 = this week, 1 = last week, 2 = the last fortnight. Weeks start Sunday. */
+function preset(which){
+  const now = new Date();
+  const todayKey = isoDay(now);
+  const dow = new Date(todayKey + 'T12:00:00Z').getUTCDay();
+  const sunday = new Date(todayKey + 'T12:00:00Z');
+  sunday.setUTCDate(sunday.getUTCDate() - dow);
+
+  let from, to;
+  if (which === 0){
+    from = sunday; to = new Date(todayKey + 'T12:00:00Z');
+  } else if (which === 1){
+    to = new Date(sunday); to.setUTCDate(to.getUTCDate() - 1);
+    from = new Date(to); from.setUTCDate(from.getUTCDate() - 6);
+  } else {
+    to = new Date(todayKey + 'T12:00:00Z');
+    from = new Date(sunday); from.setUTCDate(from.getUTCDate() - 7);
+  }
+  document.getElementById('fromDate').value = from.toISOString().slice(0,10);
+  document.getElementById('toDate').value = to.toISOString().slice(0,10);
+  load();
+}
+
+function render(d){
+  const tb = document.getElementById('rows');
+  const staff = d.staff || [];
+  const paid = staff.filter(s => s.totalHours > 0 || s.tips > 0);
+
+  if (!paid.length){
+    tb.innerHTML = '<tr><td colspan="9" class="empty">Nobody clocked any hours in this range.</td></tr>';
+    document.getElementById('foot').innerHTML = '';
+  } else {
+    tb.innerHTML = paid.map(s => '<tr>' +
+      '<td>' + esc(s.name) + '</td>' +
+      '<td class="num">' + s.regularHours + '</td>' +
+      '<td class="num">' + (s.otHours || '<span class="muted">—</span>') + '</td>' +
+      '<td class="num">' + (s.dtHours || '<span class="muted">—</span>') + '</td>' +
+      '<td class="num">' + s.totalHours + '</td>' +
+      '<td class="num">' + money(s.hourlyRate) + '</td>' +
+      '<td class="num">' + money(s.grossWages) + '</td>' +
+      '<td class="num">' + money(s.tips) + '</td>' +
+      '<td class="num count">' + money(s.total) + '</td>' +
+    '</tr>').join('');
+
+    const sum = k => paid.reduce((t, s) => t + (Number(s[k]) || 0), 0);
+    const r = n => Math.round(n * 100) / 100;
+    document.getElementById('foot').innerHTML = '<tr>' +
+      '<td>Total</td>' +
+      '<td class="num">' + r(sum('regularHours')) + '</td>' +
+      '<td class="num">' + r(sum('otHours')) + '</td>' +
+      '<td class="num">' + r(sum('dtHours')) + '</td>' +
+      '<td class="num">' + r(sum('totalHours')) + '</td>' +
+      '<td></td>' +
+      '<td class="num">' + money(r(sum('grossWages'))) + '</td>' +
+      '<td class="num">' + money(r(sum('tips'))) + '</td>' +
+      '<td class="num">' + money(r(sum('total'))) + '</td>' +
+    '</tr>';
+  }
+
+  // Anything that would make the numbers wrong gets said out loud.
+  const warn = [];
+  const noRate = staff.filter(s => s.missingRate && s.totalHours > 0).map(s => s.name);
+  if (noRate.length) warn.push('No hourly rate set for ' + noRate.join(', ') +
+    ' — their hours are counted but wages cannot be worked out. Set a rate on the Team page.');
+  const open = staff.filter(s => s.openShift).map(s => s.name);
+  if (open.length) warn.push(open.join(', ') + ' ' + (open.length === 1 ? 'is' : 'are') +
+    ' still clocked in. Shifts in progress are not counted until they clock out.');
+  document.getElementById('warnings').innerHTML =
+    warn.map(w => '<div class="warn">' + esc(w) + '</div>').join('');
+
+  document.getElementById('meta').textContent =
+    d.from + ' to ' + d.to + ' · workweek ' + d.workweek + ' · Pacific';
+}
+
+async function load(){
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  const q = from && to ? ('?from=' + from + '&to=' + to) : '';
+  render(await authApi('/payroll' + q));
+}
+
+staffBoot('manager', async () => {
+  if (!document.getElementById('fromDate').value) { preset(2); return; }
+  await load();
+});
+</script>
