@@ -520,6 +520,46 @@ async function handleShift(request, env){
   if (got.error) return got.error;
   const body = await request.json().catch(() => ({}));
 
+  /* Many shifts at once: repeating patterns, and copying a week forward.
+     A shift that already exists at the same start for the same person is
+     skipped, so copying a week twice cannot double-book anyone. */
+  if (Array.isArray(body.bulk)){
+    const items = body.bulk.slice(0, 200);
+    const now = new Date().toISOString();
+    const names = new Set();
+    let created = 0, skipped = 0;
+
+    for (const it of items){
+      const userId = Number(it.userId);
+      const starts = String(it.startsAt || '');
+      const ends = String(it.endsAt || '');
+      if (!userId || !starts || !ends) { skipped++; continue; }
+      if (Number.isNaN(Date.parse(starts)) || Number.isNaN(Date.parse(ends))) { skipped++; continue; }
+      if (Date.parse(ends) <= Date.parse(starts)) { skipped++; continue; }
+
+      const target = await env.DB.prepare('SELECT id, name FROM users WHERE id = ?').bind(userId).first();
+      if (!target) { skipped++; continue; }
+
+      const clash = await env.DB.prepare(
+        'SELECT id FROM shifts WHERE user_id = ? AND starts_at = ?'
+      ).bind(userId, starts).first();
+      if (clash) { skipped++; continue; }
+
+      await env.DB.prepare(
+        'INSERT INTO shifts (user_id, starts_at, ends_at, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(userId, starts, ends, String(it.note || '').slice(0, 200) || null, got.user.id, now).run();
+      created++;
+      names.add(target.name);
+    }
+
+    if (created){
+      await audit(env, got.user, 'shift.bulk', null, null,
+        created + ' shift' + (created === 1 ? '' : 's') + ' added for ' + [...names].join(', ') +
+        (skipped ? ' (' + skipped + ' skipped as already scheduled)' : ''));
+    }
+    return json({ ok: true, created, skipped }, 200, request, env);
+  }
+
   if (body.remove){
     const s = await env.DB.prepare(
       'SELECT s.id, s.starts_at, u.name FROM shifts s JOIN users u ON u.id = s.user_id WHERE s.id = ?'

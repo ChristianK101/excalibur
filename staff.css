@@ -64,6 +64,34 @@ label.field{display:flex;flex-direction:column;gap:.3rem;font-size:.56rem;letter
 .msg.err{background:rgba(220,50,50,.1);border-color:rgba(220,50,50,.45);color:#f08080;}
 .msg.ok{background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.4);color:var(--gold-light);}
 
+/* Day-of-week picker */
+.dow-row{display:flex;flex-wrap:wrap;gap:.4rem;}
+.dow{padding:.5rem .8rem;min-width:3.2rem;background:rgba(0,0,0,.3);border:1px solid rgba(201,168,76,.25);color:var(--cream-dim);font-family:'Montserrat',sans-serif;font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .15s;}
+.dow:hover{border-color:var(--gold);color:var(--gold);}
+.dow.on{background:var(--gold);border-color:var(--gold);color:var(--brown-dark);}
+
+/* How-to panel */
+.help-overlay{position:fixed;inset:0;background:rgba(8,4,1,.93);z-index:900;display:none;align-items:flex-start;justify-content:center;padding:1.5rem;overflow-y:auto;}
+.help-overlay.open{display:flex;}
+.help-box{position:relative;background:var(--brown-mid);border:1px solid rgba(201,168,76,.3);max-width:560px;width:100%;margin:auto;padding:2.4rem 2rem 1.8rem;animation:authIn .3s ease;}
+.help-title{font-family:'Cormorant Garamond',serif;font-size:1.9rem;font-weight:300;color:var(--cream);margin-bottom:.5rem;}
+.help-lead{font-size:.78rem;color:var(--cream-dim);line-height:1.7;margin-bottom:1.6rem;}
+.help-step{display:flex;gap:1rem;margin-bottom:1.5rem;}
+.help-n{flex-shrink:0;width:1.9rem;height:1.9rem;border-radius:50%;background:var(--gold);color:var(--brown-dark);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;}
+.help-step > div > strong:first-child{display:block;color:var(--gold-light);font-size:.85rem;margin-bottom:.4rem;font-weight:600;}
+.help-step p strong{display:inline;color:var(--gold-light);font-weight:600;}
+.help-step p{font-size:.76rem;color:var(--cream-dim);line-height:1.65;margin-bottom:.5rem;}
+.help-step em{color:var(--cream);font-style:normal;font-weight:500;}
+.help-tip{font-size:.72rem !important;color:rgba(200,185,154,.65) !important;border-left:2px solid rgba(201,168,76,.35);padding-left:.7rem;}
+.help-again{display:flex;align-items:center;gap:.5rem;font-size:.74rem;color:var(--cream-dim);margin:1.4rem 0 1rem;cursor:pointer;}
+.help-again input{accent-color:var(--gold);}
+
+@media(max-width:600px){
+  .help-box{padding:2rem 1.2rem 1.4rem;}
+  .help-title{font-size:1.55rem;}
+  .dow{min-width:2.8rem;padding:.5rem .5rem;}
+}
+
 /* Big clock-in control */
 .clock-card{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;padding:1.8rem;border:1px solid rgba(201,168,76,.25);background:rgba(255,255,255,.03);margin-bottom:2.5rem;}
 .clock-state{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;color:var(--cream);}

@@ -51,18 +51,42 @@
     </div>
 
     <div class="section">
-      <div class="section-head"><div class="section-title">Schedule a Shift</div></div>
+      <div class="section-head">
+        <div class="section-title">Schedule Shifts</div>
+        <div class="section-note">
+          <button class="btn btn-ghost btn-sm" onclick="openHelp()">? How do I use this</button>
+        </div>
+      </div>
+
       <div class="form-row">
         <label class="field">Person<select id="shiftUser"></select></label>
-        <label class="field">Date<input type="date" id="shiftDate"></label>
-        <label class="field">Start<input type="time" id="shiftStart" value="09:00"></label>
-        <label class="field">End<input type="time" id="shiftEnd" value="17:00"></label>
+        <label class="field">Start<input type="time" id="shiftStart" value="16:00"></label>
+        <label class="field">End<input type="time" id="shiftEnd" value="23:00"></label>
         <label class="field">Note<input type="text" id="shiftNote" placeholder="optional" maxlength="200"></label>
-        <button class="btn" onclick="addShift()">Add Shift</button>
       </div>
+
+      <div class="form-row" style="align-items:center">
+        <label class="field" style="flex:1 1 100%">Which days
+          <div class="dow-row" id="dowRow"></div>
+        </label>
+        <label class="field">Week beginning<input type="date" id="shiftWeek"></label>
+        <label class="field">Repeat for
+          <select id="shiftRepeat">
+            <option value="1">1 week</option>
+            <option value="2">2 weeks</option>
+            <option value="4">4 weeks</option>
+            <option value="8">8 weeks</option>
+            <option value="12">12 weeks</option>
+          </select>
+        </label>
+        <button class="btn" onclick="addShifts(this)">Add Shifts</button>
+        <button class="btn btn-ghost" onclick="copyLastWeek(this)">Copy Last Week</button>
+      </div>
+      <div class="section-note" id="shiftStatus" style="min-height:1.2em;margin-bottom:1rem"></div>
+
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Person</th><th>Date</th><th>Time</th><th>Note</th><th></th></tr></thead>
+          <thead><tr><th>Person</th><th>Date</th><th>Time</th><th>Note</th><th>Repeat</th><th></th></tr></thead>
           <tbody id="shiftRows"></tbody>
         </table>
       </div>
@@ -113,12 +137,79 @@
   </div>
 </div>
 
+<div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)closeHelp()">
+  <div class="help-box">
+    <button class="auth-close" onclick="closeHelp()" aria-label="Close">&#10005;</button>
+    <div class="help-title">Scheduling, in three ways</div>
+    <p class="help-lead">
+      Most weeks you will only need the first one. Times are always the lounge&rsquo;s local time.
+    </p>
+
+    <div class="help-step">
+      <div class="help-n">1</div>
+      <div>
+        <strong>Copy Last Week &mdash; the quick way</strong>
+        <p>If this week looks like last week, set <em>Week beginning</em> to the week you are filling,
+        then press <strong>Copy Last Week</strong>. Everyone who was scheduled the week before gets the
+        same days and the same times again. Then just fix whatever is different &mdash; remove a shift,
+        or add one.</p>
+        <p class="help-tip">Pressing it twice is safe. Anything already scheduled is left alone rather
+        than being doubled up.</p>
+      </div>
+    </div>
+
+    <div class="help-step">
+      <div class="help-n">2</div>
+      <div>
+        <strong>Add Shifts &mdash; for a standing rota</strong>
+        <p>Pick the person, set their start and end time, then tap the days they work &mdash;
+        <em>Mon Tue Wed</em> and so on. Choose the week it starts, pick how long it repeats, and press
+        <strong>Add Shifts</strong>.</p>
+        <p class="help-tip">Example: Anna, 4:00 PM to 11:00 PM, tap Thu Fri Sat, repeat for 8 weeks.
+        That is 24 shifts from one press.</p>
+      </div>
+    </div>
+
+    <div class="help-step">
+      <div class="help-n">3</div>
+      <div>
+        <strong>+1 day / +1 week &mdash; for one-offs</strong>
+        <p>Every shift in the list below has these two buttons. They copy that single shift to the next
+        day, or to the same day next week. Useful when someone picks up one extra shift.</p>
+      </div>
+    </div>
+
+    <div class="help-step">
+      <div class="help-n">&#9733;</div>
+      <div>
+        <strong>Worth knowing</strong>
+        <p>A shift that ends earlier than it starts is treated as running past midnight &mdash; so
+        4:00 PM to 1:00 AM is a nine hour shift ending the next morning, which is what you want for
+        a close.</p>
+        <p>Scheduling someone does <em>not</em> clock them in. Staff still tap Clock In on their own
+        Schedules page when they arrive. The schedule is what they are meant to work; the clock is
+        what they actually worked.</p>
+        <p>Everything you do here is recorded with your name in the owner&rsquo;s activity log.</p>
+      </div>
+    </div>
+
+    <label class="help-again">
+      <input type="checkbox" id="helpNever"> Don&rsquo;t show this again
+    </label>
+    <button class="btn" style="width:100%;justify-content:center" onclick="closeHelp()">Got it</button>
+    <p class="help-tip" style="text-align:center;margin-top:.8rem">
+      You can reopen this any time with the <strong>?</strong> button next to Schedule Shifts.
+    </p>
+  </div>
+</div>
+
 <script src="auth.js"></script>
 <script src="staff.js"></script>
 <script>
 let month = null;
 let staff = [];
 let logEntries = [];
+let shiftRowData = [];
 let locationSet = false;
 let radiusM = 150;
 
@@ -165,24 +256,35 @@ function renderStaff(){
       'onchange="setRate(' + s.id + ', this)"></td>' +
   '</tr>').join('');
 
+  // Rebuilding these would silently reset the choice to the first person,
+  // so whoever was selected stays selected across a save.
   const opts = staff.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
-  document.getElementById('shiftUser').innerHTML = opts;
-  document.getElementById('tipUser').innerHTML = opts;
+  ['shiftUser', 'tipUser'].forEach(id => {
+    const el = document.getElementById(id);
+    const was = el.value;
+    el.innerHTML = opts;
+    if (was && staff.some(s => String(s.id) === was)) el.value = was;
+  });
 }
 
 function renderShifts(){
   const rows = [];
-  staff.forEach(s => (s.shifts || []).forEach(sh => rows.push({ name: s.name, ...sh })));
+  staff.forEach(s => (s.shifts || []).forEach(sh => rows.push({ name: s.name, userId: s.id, ...sh })));
   rows.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const tb = document.getElementById('shiftRows');
-  if (!rows.length){ tb.innerHTML = '<tr><td colspan="5" class="empty">No shifts scheduled this month.</td></tr>'; return; }
-  tb.innerHTML = rows.map(r => '<tr>' +
-    '<td>' + esc(r.name) + '</td>' +
-    '<td class="muted">' + fmtDay(r.starts_at) + '</td>' +
-    '<td>' + fmtTime(r.starts_at) + ' &ndash; ' + fmtTime(r.ends_at) + '</td>' +
-    '<td class="muted">' + esc(r.note || '') + '</td>' +
-    '<td><button class="btn btn-ghost btn-sm" onclick="removeShift(' + r.id + ')">Remove</button></td>' +
-  '</tr>').join('');
+  if (!rows.length){ tb.innerHTML = '<tr><td colspan="6" class="empty">No shifts scheduled this month.</td></tr>'; return; }
+  shiftRowData = rows;
+  tb.innerHTML = rows.map((r, i) => '<tr>' +
+      '<td>' + esc(r.name) + '</td>' +
+      '<td class="muted">' + fmtDay(r.starts_at) + '</td>' +
+      '<td>' + fmtTime(r.starts_at) + ' &ndash; ' + fmtTime(r.ends_at) + '</td>' +
+      '<td class="muted">' + esc(r.note || '') + '</td>' +
+      '<td>' +
+        '<button class="btn btn-ghost btn-sm" title="Same shift tomorrow" onclick="repeatShift(' + i + ',1,this)">+1 day</button> ' +
+        '<button class="btn btn-ghost btn-sm" title="Same shift next week" onclick="repeatShift(' + i + ',7,this)">+1 week</button>' +
+      '</td>' +
+      '<td><button class="btn btn-ghost btn-sm" onclick="removeShift(' + r.id + ')">Remove</button></td>' +
+    '</tr>').join('');
 }
 
 function renderLog(){
@@ -222,24 +324,145 @@ async function setRate(userId, el){
   catch (err){ flash(err.message, 'err'); el.disabled = false; }
 }
 
-async function addShift(){
-  const userId = Number(document.getElementById('shiftUser').value);
-  const date = document.getElementById('shiftDate').value;
-  const start = document.getElementById('shiftStart').value;
-  const end = document.getElementById('shiftEnd').value;
-  if (!userId || !date || !start || !end){ flash('Pick a person, a date, and both times.', 'err'); return; }
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function renderDayPicker(){
+  document.getElementById('dowRow').innerHTML = DOW.map((d, i) =>
+    '<button type="button" class="dow" data-d="' + i + '" onclick="this.classList.toggle(\'on\')">' + d + '</button>'
+  ).join('');
+}
+
+function chosenDays(){
+  return Array.from(document.querySelectorAll('.dow.on')).map(b => Number(b.dataset.d));
+}
+
+/** Add n days to a YYYY-MM-DD without tripping over daylight saving. */
+function addDays(day, n){
+  const d = new Date(day + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** The Sunday on or before a given day. */
+function sundayOf(day){
+  return addDays(day, -new Date(day + 'T12:00:00Z').getUTCDay());
+}
+
+function shiftStatus(text, bad){
+  const el = document.getElementById('shiftStatus');
+  el.textContent = text || '';
+  el.style.color = bad ? '#f08080' : 'var(--gold-light)';
+}
+
+/** One shift's worth of instants, handling a shift that runs past midnight. */
+function shiftInstants(date, start, end){
   const startsAt = toInstant(date, start);
   let endsAt = toInstant(date, end);
-  // An end time earlier than the start means the shift runs past midnight.
-  if (endsAt && startsAt && Date.parse(endsAt) <= Date.parse(startsAt)){
-    endsAt = new Date(Date.parse(endsAt) + 86400000).toISOString();
+  if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)){
+    endsAt = toInstant(addDays(date, 1), end);
   }
+  return { startsAt, endsAt };
+}
+
+async function addShifts(btn){
+  const userId = Number(document.getElementById('shiftUser').value);
+  const start = document.getElementById('shiftStart').value;
+  const end = document.getElementById('shiftEnd').value;
+  const weekStart = document.getElementById('shiftWeek').value;
+  const weeks = Number(document.getElementById('shiftRepeat').value) || 1;
+  const days = chosenDays();
+  const note = document.getElementById('shiftNote').value;
+
+  if (!userId){ shiftStatus('Pick a person first.', true); return; }
+  if (!days.length){ shiftStatus('Tap the days of the week you want them on.', true); return; }
+  if (!weekStart || !start || !end){ shiftStatus('Set the week and both times.', true); return; }
+
+  const sunday = sundayOf(weekStart);
+  const bulk = [];
+  for (let w = 0; w < weeks; w++){
+    for (const d of days){
+      const date = addDays(sunday, w * 7 + d);
+      const { startsAt, endsAt } = shiftInstants(date, start, end);
+      if (startsAt && endsAt) bulk.push({ userId, startsAt, endsAt, note });
+    }
+  }
+  if (!bulk.length){ shiftStatus('Nothing to add.', true); return; }
+
+  btn.disabled = true;
   try {
-    await authApi('/team/shift', { userId, startsAt, endsAt, note: document.getElementById('shiftNote').value });
+    const res = await authApi('/team/shift', { bulk });
+    shiftStatus('Added ' + res.created + ' shift' + (res.created === 1 ? '' : 's') +
+      (res.skipped ? ' · ' + res.skipped + ' already scheduled, left alone' : '') + '.');
     document.getElementById('shiftNote').value = '';
-    flash('Shift added.', 'ok');
     await load();
-  } catch (err){ flash(err.message, 'err'); }
+  } catch (err){ shiftStatus(err.message, true); }
+  btn.disabled = false;
+}
+
+/** Take everything scheduled last week and lay it on this week. */
+async function copyLastWeek(btn){
+  const target = sundayOf(document.getElementById('shiftWeek').value || todayKey());
+  const source = addDays(target, -7);
+
+  btn.disabled = true;
+  shiftStatus('Looking at the week of ' + source + '…');
+  try {
+    // The source week may sit in the previous month, so ask for both.
+    const months = [...new Set([source.slice(0, 7), addDays(source, 6).slice(0, 7)])];
+    const results = await Promise.all(months.map(m => authApi('/team?month=' + m)));
+    const seen = new Set();
+    const bulk = [];
+    for (const r of results){
+      for (const person of (r.staff || [])){
+        for (const sh of (person.shifts || [])){
+          const day = dayKey(sh.starts_at);
+          if (day < source || day > addDays(source, 6)) continue;
+          if (seen.has(sh.id)) continue;
+          seen.add(sh.id);
+          // Keep the same weekday and wall-clock time, one week later.
+          const newDay = addDays(day, 7);
+          const startTime = hhmm(sh.starts_at);
+          const endTime = hhmm(sh.ends_at);
+          const { startsAt, endsAt } = shiftInstants(newDay, startTime, endTime);
+          bulk.push({ userId: person.id, startsAt, endsAt, note: sh.note || '' });
+        }
+      }
+    }
+    if (!bulk.length){
+      shiftStatus('Nothing was scheduled the week of ' + source + ', so there is nothing to copy.', true);
+    } else {
+      const res = await authApi('/team/shift', { bulk });
+      shiftStatus('Copied ' + res.created + ' shift' + (res.created === 1 ? '' : 's') + ' into the week of ' + target +
+        (res.skipped ? ' · ' + res.skipped + ' were already there' : '') + '.');
+      await load();
+    }
+  } catch (err){ shiftStatus(err.message, true); }
+  btn.disabled = false;
+}
+
+/** Repeat one shift from the list, n days later. */
+async function repeatShift(index, days, btn){
+  const r = shiftRowData[index];
+  if (!r) return;
+  btn.disabled = true;
+  try {
+    const day = addDays(dayKey(r.starts_at), days);
+    const { startsAt: s, endsAt: e } = shiftInstants(day, hhmm(r.starts_at), hhmm(r.ends_at));
+    const res = await authApi('/team/shift', { bulk: [{ userId: r.userId, startsAt: s, endsAt: e, note: r.note || '' }] });
+    shiftStatus(res.created ? 'Repeated on ' + day + '.' : 'That shift already exists on ' + day + '.', !res.created);
+    await load();
+  } catch (err){ shiftStatus(err.message, true); btn.disabled = false; }
+}
+
+function todayKey(){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+}
+
+/** Wall-clock HH:MM at the lounge for an instant. */
+function hhmm(iso){
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date(iso));
+  return p.find(x => x.type === 'hour').value + ':' + p.find(x => x.type === 'minute').value;
 }
 
 async function removeShift(id){
@@ -368,10 +591,38 @@ async function load(){
   document.getElementById('monthLabel').textContent =
     new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { timeZone:'UTC', month:'long', year:'numeric' });
   document.getElementById('meta').textContent = staff.length + ' on staff · times shown Pacific';
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
-  if (!document.getElementById('shiftDate').value) document.getElementById('shiftDate').value = today;
+  const today = todayKey();
+  if (!document.getElementById('shiftWeek').value) document.getElementById('shiftWeek').value = sundayOf(today);
   if (!document.getElementById('tipDate').value) document.getElementById('tipDate').value = today;
 }
 
-staffBoot('manager', load);
+const HELP_KEY = 'excaliburScheduleHelpSeen';
+
+function openHelp(){
+  document.getElementById('helpOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeHelp(){
+  const never = document.getElementById('helpNever');
+  if (never && never.checked){
+    try { localStorage.setItem(HELP_KEY, '1'); } catch(e){}
+  }
+  document.getElementById('helpOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function maybeShowHelp(){
+  let seen = false;
+  try { seen = localStorage.getItem(HELP_KEY) === '1'; } catch(e){}
+  if (!seen) openHelp();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
+
+staffBoot('manager', async () => {
+  renderDayPicker();
+  await load();
+  maybeShowHelp();
+});
 </script>
