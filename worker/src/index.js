@@ -1593,7 +1593,25 @@ export default {
       if (!env.DB) return json({ ok: false, error: 'No D1 binding named DB on this deployment.' }, 500, request, env);
       try {
         const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first();
-        return json({ ok: true, users: r.n, ownerEmailSet: !!env.OWNER_EMAIL, origins: env.ALLOWED_ORIGINS || null }, 200, request, env);
+        // Whether a table or a secret exists, never its contents. Enough to
+        // tell a missing secret from a missing table without reading logs.
+        const tableExists = async name => {
+          try {
+            await env.DB.prepare('SELECT 1 FROM ' + name + ' LIMIT 1').first();
+            return true;
+          } catch (e){ return false; }
+        };
+        return json({
+          ok: true,
+          users: r.n,
+          ownerEmailSet: !!env.OWNER_EMAIL,
+          origins: env.ALLOWED_ORIGINS || null,
+          resendKeySet: !!env.RESEND_API_KEY,
+          resetFrom: env.RESET_FROM || null,
+          resetTable: await tableExists('password_resets'),
+          cloverTokenSet: !!env.CLOVER_TOKEN,
+          salesTables: await tableExists('sales_payments')
+        }, 200, request, env);
       } catch (err){
         return json({ ok: false, error: 'Database error: ' + (err && err.message) }, 500, request, env);
       }
