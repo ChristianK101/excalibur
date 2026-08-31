@@ -752,6 +752,15 @@ const CATALOG_PAGE = 500;       // menu items per Clover request
 const CATALOG_MAX_PAGES = 2;
 const MAX_BATCH = 800;          // statements before a batch is flushed
 
+// Most detail first. If Clover rejects an expansion the next one is tried, and
+// the one that works is remembered in settings.
+const CLOVER_EXPAND = [
+  'lineItems,lineItems.discounts,payments,payments.tender,payments.refunds',
+  'lineItems,payments,payments.tender',
+  'lineItems,payments',
+  'lineItems'
+];
+
 /**
  * Units sold on a line. Clover writes one row per unit for ordinary items and
  * only sets unitQty (in thousandths) for things sold by weight or measure.
@@ -759,6 +768,32 @@ const MAX_BATCH = 800;          // statements before a batch is flushed
 function lineQty(li){
   const q = Number(li.unitQty);
   return Number.isFinite(q) && q > 0 ? q / 1000 : 1;
+}
+
+/** Hour of the day in San Diego, 0-23, so an hourly report reads like the bar felt. */
+function localHour(date){
+  try {
+    const h = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'America/Los_Angeles', hour: '2-digit', hourCycle: 'h23'
+    }).format(date);
+    return Number(h) % 24;
+  } catch (e){
+    return new Date(date.getTime() - 8 * 3600000).getUTCHours();
+  }
+}
+
+/** What a line was discounted by, as a positive number. Clover signs these negative. */
+function lineDiscount(li){
+  const els = (li.discounts && li.discounts.elements) || li.discounts || [];
+  if (!Array.isArray(els)) return 0;
+  return els.reduce((t, d) => t + Math.abs(Number(d.amount) || 0), 0);
+}
+
+/** Everything refunded against one payment, as a positive number. */
+function paymentRefunded(p){
+  const els = (p.refunds && p.refunds.elements) || p.refunds || [];
+  if (!Array.isArray(els)) return 0;
+  return els.reduce((t, r) => t + Math.abs(Number(r.amount) || 0), 0);
 }
 
 /**
@@ -769,31 +804,54 @@ function lineQty(li){
  */
 function orderStatements(env, o, syncedAt){
   const created = Number(o.createdTime) || Number(o.modifiedTime) || Date.now();
-  const day = localDay(new Date(created));
+  const at = new Date(created);
+  const day = localDay(at);
+  const hour = localHour(at);
 
   const stmts = [
     env.DB.prepare(
-      `INSERT INTO sales_orders (id, day, created_ms, modified_ms, state, total_cents, synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET day = excluded.day, created_ms = excluded.created_ms,
-         modified_ms = excluded.modified_ms, state = excluded.state,
-         total_cents = excluded.total_cents, synced_at = excluded.synced_at`
-    ).bind(o.id, day, created, Number(o.modifiedTime) || created,
+      `INSERT INTO sales_orders (id, day, hour, created_ms, modified_ms, state, total_cents, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET day = excluded.day, hour = excluded.hour,
+         created_ms = excluded.created_ms, modified_ms = excluded.modified_ms,
+         state = excluded.state, total_cents = excluded.total_cents,
+         synced_at = excluded.synced_at`
+    ).bind(o.id, day, hour, created, Number(o.modifiedTime) || created,
            o.state || null, Number(o.total) || 0, syncedAt),
-    env.DB.prepare('DELETE FROM sales_items WHERE order_id = ?').bind(o.id)
+    env.DB.prepare('DELETE FROM sales_items WHERE order_id = ?').bind(o.id),
+    env.DB.prepare('DELETE FROM sales_payments WHERE order_id = ?').bind(o.id)
   ];
 
   const lines = (o.lineItems && o.lineItems.elements) || [];
   for (const li of lines){
     stmts.push(env.DB.prepare(
       `INSERT OR REPLACE INTO sales_items
-         (id, order_id, day, item_id, name, price_cents, qty, refunded)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, order_id, day, item_id, name, price_cents, qty, refunded, discount_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(li.id, o.id, day, (li.item && li.item.id) || null,
            (li.name || 'Unnamed').trim(), Number(li.price) || 0, lineQty(li),
-           (li.refunded || li.exchanged) ? 1 : 0));
+           (li.refunded || li.exchanged) ? 1 : 0, lineDiscount(li)));
   }
-  return { stmts, lines: lines.length };
+
+  // Tips, tax and tender are on the payment. An order can have several (a
+  // split cheque), so each is stored on its own.
+  const pays = (o.payments && o.payments.elements) || [];
+  for (const p of pays){
+    const pAt = new Date(Number(p.createdTime) || created);
+    stmts.push(env.DB.prepare(
+      `INSERT OR REPLACE INTO sales_payments
+         (id, order_id, day, hour, created_ms, amount_cents, tip_cents, tax_cents,
+          refunded_cents, tender, employee_id, result)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(p.id, o.id, localDay(pAt), localHour(pAt), pAt.getTime(),
+           Number(p.amount) || 0, Number(p.tipAmount) || 0, Number(p.taxAmount) || 0,
+           paymentRefunded(p),
+           (p.tender && (p.tender.label || p.tender.labelKey)) || null,
+           (p.employee && p.employee.id) || null,
+           p.result || null));
+  }
+
+  return { stmts, lines: lines.length, payments: pays.length };
 }
 
 /** The menu as Clover holds it, so "sold nothing this month" can be answered. */
@@ -801,23 +859,42 @@ async function syncCatalog(env){
   const now = new Date().toISOString();
   let offset = 0, saved = 0;
   for (let page = 0; page < CATALOG_MAX_PAGES; page++){
-    const res = await cloverFetch(env, '/items', { limit: CATALOG_PAGE, offset });
+    const res = await cloverFetch(env, '/items', { limit: CATALOG_PAGE, offset, expand: 'categories' });
     if (!res.ok) return { ok: false, status: res.status, error: res.error, saved };
     const batch = (res.data && res.data.elements) || [];
     if (batch.length){
-      await env.DB.batch(batch.map(it => env.DB.prepare(
-        `INSERT INTO clover_items (id, name, price_cents, hidden, synced_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, price_cents = excluded.price_cents,
-           hidden = excluded.hidden, synced_at = excluded.synced_at`
-      ).bind(it.id, (it.name || 'Unnamed').trim(), Number(it.price) || 0,
-             it.hidden ? 1 : 0, now)));
+      await env.DB.batch(batch.map(it => {
+        const cats = (it.categories && it.categories.elements) || [];
+        return env.DB.prepare(
+          `INSERT INTO clover_items (id, name, price_cents, hidden, category, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET name = excluded.name, price_cents = excluded.price_cents,
+             hidden = excluded.hidden, category = excluded.category, synced_at = excluded.synced_at`
+        ).bind(it.id, (it.name || 'Unnamed').trim(), Number(it.price) || 0,
+               it.hidden ? 1 : 0, (cats[0] && cats[0].name) || null, now);
+      }));
       saved += batch.length;
     }
     offset += batch.length;
     if (batch.length < CATALOG_PAGE) break;
   }
   return { ok: true, saved };
+}
+
+/** Register staff, so payments and tips can be reported by name. */
+async function syncEmployees(env){
+  const now = new Date().toISOString();
+  const res = await cloverFetch(env, '/employees', { limit: CATALOG_PAGE });
+  if (!res.ok) return { ok: false, status: res.status, error: res.error, saved: 0 };
+  const batch = (res.data && res.data.elements) || [];
+  if (batch.length){
+    await env.DB.batch(batch.map(e => env.DB.prepare(
+      `INSERT INTO clover_employees (id, name, role, synced_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, role = excluded.role,
+         synced_at = excluded.synced_at`
+    ).bind(e.id, (e.name || e.nickname || 'Unnamed').trim(), e.role || null, now)));
+  }
+  return { ok: true, saved: batch.length };
 }
 
 /**
@@ -844,7 +921,7 @@ async function handleCloverSync(request, env){
   }
 
   const syncedAt = new Date().toISOString();
-  let offset = 0, orders = 0, items = 0, maxModified = since, capped = false;
+  let offset = 0, orders = 0, items = 0, payments = 0, maxModified = since, capped = false;
   const states = {};
   let pending = [];
   const flush = async () => {
@@ -852,19 +929,35 @@ async function handleCloverSync(request, env){
     pending = [];
   };
 
+  // Nested expansions give tender and refund detail, but not every Clover plan
+  // accepts them. The one that works is remembered, so the fallback is paid for
+  // once rather than on every page.
+  let expand = await getSetting(env, 'clover_expand') || CLOVER_EXPAND[0];
+
   for (let page = 0; page < CLOVER_MAX_PAGES; page++){
-    const res = await cloverFetch(env, '/orders', {
+    const params = {
       filter: ['modifiedTime>=' + since, 'modifiedTime<=' + now],
-      expand: 'lineItems',
       orderBy: 'modifiedTime ASC',
       limit: CLOVER_PAGE,
       offset
-    });
+    };
+    let res = await cloverFetch(env, '/orders', { ...params, expand });
+    if (!res.ok && res.status === 400){
+      for (const fallback of CLOVER_EXPAND){
+        if (fallback === expand) continue;
+        res = await cloverFetch(env, '/orders', { ...params, expand: fallback });
+        if (res.ok){
+          expand = fallback;
+          await putSetting(env, 'clover_expand', fallback, got.user.id);
+          break;
+        }
+      }
+    }
     if (!res.ok){
       return json({
         ok: false, step: 'orders', status: res.status, error: res.error,
         ordersSynced: orders,
-        hint: res.status === 403 ? 'The token needs read access to Orders.' : undefined
+        hint: res.status === 403 ? 'The token needs read access to Orders and Payments.' : undefined
       }, 200, request, env);
     }
 
@@ -873,6 +966,7 @@ async function handleCloverSync(request, env){
       const built = orderStatements(env, o, syncedAt);
       pending.push(...built.stmts);
       items += built.lines;
+      payments += built.payments;
       orders++;
       states[o.state || 'none'] = (states[o.state || 'none'] || 0) + 1;
       const m = Number(o.modifiedTime) || Number(o.createdTime) || 0;
@@ -891,6 +985,7 @@ async function handleCloverSync(request, env){
   await putSetting(env, 'clover_synced_at', new Date().toISOString(), got.user.id);
 
   const catalog = await syncCatalog(env);
+  const staff = await syncEmployees(env);
   await audit(env, got.user, 'clover.sync', null, null,
     `${orders} order${orders === 1 ? '' : 's'}, ${items} line items`);
 
@@ -898,20 +993,25 @@ async function handleCloverSync(request, env){
     ok: true,
     ordersSynced: orders,
     itemsSynced: items,
+    paymentsSynced: payments,
     menuItems: catalog.ok ? catalog.saved : null,
     catalogError: catalog.ok ? undefined : catalog.error,
+    employees: staff.ok ? staff.saved : null,
+    employeeError: staff.ok ? undefined : staff.error,
     orderStates: states,
+    expand,
     since: new Date(since).toISOString(),
     more: capped
   }, 200, request, env);
 }
 
 /**
- * What moved and what did not, over a range of Pacific calendar days.
- * Refunded lines are excluded; anything on the Clover menu with no sales in
+ * The sales report, over a range of Pacific calendar days: the money summary,
+ * how it was paid, who rang it, what sold, and what did not. Refunded lines
+ * are excluded from item counts; anything on the Clover menu with no sales in
  * the range comes back separately, because that is the real "slowest seller".
  */
-async function handleSalesItems(request, env){
+async function handleSalesReport(request, env){
   const got = await requireRole(request, env, 'owner');
   if (got.error) return got.error;
 
@@ -950,12 +1050,114 @@ async function handleSalesItems(request, env){
       ORDER BY name COLLATE NOCASE`
   ).bind(from, to, from, to).all();
 
+  // Money as Clover splits it. Gross and discounts come off the ticket lines;
+  // tax, tips and what was actually collected come off the payments, because
+  // that is where they are recorded.
+  const pay = await env.DB.prepare(
+    `SELECT COUNT(*) AS n,
+            COALESCE(SUM(amount_cents), 0)   AS amount_cents,
+            COALESCE(SUM(tip_cents), 0)      AS tip_cents,
+            COALESCE(SUM(tax_cents), 0)      AS tax_cents,
+            COALESCE(SUM(refunded_cents), 0) AS refunded_cents
+       FROM sales_payments WHERE day >= ? AND day <= ?`
+  ).bind(from, to).first();
+
+  const lineTotals = await env.DB.prepare(
+    `SELECT COALESCE(SUM(price_cents * qty), 0) AS gross_cents,
+            COALESCE(SUM(discount_cents), 0)    AS discount_cents,
+            COALESCE(SUM(qty), 0)               AS units
+       FROM sales_items WHERE day >= ? AND day <= ? AND refunded = 0`
+  ).bind(from, to).first();
+
+  const refundedLines = await env.DB.prepare(
+    `SELECT COALESCE(SUM(price_cents * qty), 0) AS cents, COUNT(*) AS n
+       FROM sales_items WHERE day >= ? AND day <= ? AND refunded = 1`
+  ).bind(from, to).first();
+
+  const tenders = await env.DB.prepare(
+    `SELECT COALESCE(tender, 'Other') AS name, COUNT(*) AS n,
+            COALESCE(SUM(amount_cents), 0) AS amount_cents,
+            COALESCE(SUM(tip_cents), 0)    AS tip_cents
+       FROM sales_payments WHERE day >= ? AND day <= ?
+      GROUP BY COALESCE(tender, 'Other') ORDER BY amount_cents DESC`
+  ).bind(from, to).all();
+
+  // Grouped on the expression rather than the alias: both joined tables have
+  // their own `name` column, and SQLite calls that ambiguous.
+  const staff = await env.DB.prepare(
+    `SELECT COALESCE(e.name, p.employee_id, 'Not recorded') AS label, COUNT(*) AS n,
+            COALESCE(SUM(p.amount_cents), 0) AS amount_cents,
+            COALESCE(SUM(p.tip_cents), 0)    AS tip_cents
+       FROM sales_payments p LEFT JOIN clover_employees e ON e.id = p.employee_id
+      WHERE p.day >= ? AND p.day <= ?
+      GROUP BY COALESCE(e.name, p.employee_id, 'Not recorded')
+      ORDER BY amount_cents DESC`
+  ).bind(from, to).all();
+
+  const categories = await env.DB.prepare(
+    `SELECT COALESCE(c.category, 'Uncategorised') AS label,
+            COALESCE(SUM(i.qty), 0) AS units,
+            COALESCE(SUM(i.price_cents * i.qty), 0) AS revenue_cents
+       FROM sales_items i LEFT JOIN clover_items c ON c.id = i.item_id
+      WHERE i.day >= ? AND i.day <= ? AND i.refunded = 0
+      GROUP BY COALESCE(c.category, 'Uncategorised')
+      ORDER BY revenue_cents DESC`
+  ).bind(from, to).all();
+
+  // A single day is read hour by hour; anything longer, day by day.
+  const byHour = from === to;
+  const bucket = byHour ? 'hour' : 'day';
+  const trendOrders = await env.DB.prepare(
+    `SELECT ${bucket} AS k, COUNT(*) AS orders, COALESCE(SUM(total_cents), 0) AS total_cents
+       FROM sales_orders WHERE day >= ? AND day <= ? GROUP BY k ORDER BY k`
+  ).bind(from, to).all();
+  const trendTips = await env.DB.prepare(
+    `SELECT ${bucket} AS k, COALESCE(SUM(tip_cents), 0) AS tip_cents
+       FROM sales_payments WHERE day >= ? AND day <= ? GROUP BY k ORDER BY k`
+  ).bind(from, to).all();
+
+  const tipByKey = {};
+  for (const r of (trendTips.results || [])) tipByKey[r.k] = r.tip_cents;
+
+  const gross = lineTotals?.gross_cents || 0;
+  const discounts = lineTotals?.discount_cents || 0;
+  const tax = pay?.tax_cents || 0;
+  const tips = pay?.tip_cents || 0;
+  const refunds = pay?.refunded_cents || 0;
+
   return json({
     ok: true,
-    from, to,
+    from, to, bucket,
     syncedAt: await getSetting(env, 'clover_synced_at'),
-    orders: totals?.orders || 0,
-    grossSales: money(totals?.gross_cents || 0),
+    totals: {
+      orders: totals?.orders || 0,
+      payments: pay?.n || 0,
+      items: Math.round((lineTotals?.units || 0) * 100) / 100,
+      grossSales: money(gross),
+      discounts: money(discounts),
+      netSales: money(gross - discounts),
+      tax: money(tax),
+      tips: money(tips),
+      refunds: money(refunds),
+      refundedItems: refundedLines?.n || 0,
+      refundedItemValue: money(refundedLines?.cents || 0),
+      collected: money((pay?.amount_cents || 0) + tips - refunds),
+      orderTotal: money(totals?.gross_cents || 0),
+      avgTicket: totals?.orders ? money(Math.round((totals.gross_cents || 0) / totals.orders)) : null
+    },
+    tenders: (tenders.results || []).map(r => ({
+      name: r.name, count: r.n, amount: money(r.amount_cents), tips: money(r.tip_cents)
+    })),
+    staff: (staff.results || []).map(r => ({
+      name: r.label, payments: r.n, sales: money(r.amount_cents), tips: money(r.tip_cents)
+    })),
+    categories: (categories.results || []).map(r => ({
+      name: r.label, units: Math.round((r.units || 0) * 100) / 100, revenue: money(r.revenue_cents)
+    })),
+    trend: (trendOrders.results || []).map(r => ({
+      key: r.k, orders: r.orders,
+      sales: money(r.total_cents), tips: money(tipByKey[r.k] || 0)
+    })),
     items: (sold.results || []).map(r => ({
       name: r.name,
       units: Math.round((r.units || 0) * 100) / 100,
@@ -1248,7 +1450,8 @@ export default {
       if (url.pathname === '/payroll'       && request.method === 'GET')  return await handlePayroll(request, env);
       if (url.pathname === '/clover/test'   && request.method === 'GET')  return await handleCloverTest(request, env);
       if (url.pathname === '/clover/sync'   && request.method === 'POST') return await handleCloverSync(request, env);
-      if (url.pathname === '/sales/items'   && request.method === 'GET')  return await handleSalesItems(request, env);
+      if (url.pathname === '/sales/report'  && request.method === 'GET')  return await handleSalesReport(request, env);
+      if (url.pathname === '/sales/items'   && request.method === 'GET')  return await handleSalesReport(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);

@@ -103,13 +103,13 @@ waits on Clover and nothing the site does can write back to the register.
 If a token is ever exposed, revoke it in the Clover dashboard and issue a new
 one; adding a replacement secret does not disable the old token.
 
-Endpoints, all owner-only:
+Endpoints, all **owner-only** — a manager gets 403 on every one of them:
 
 | Route | Does |
 |---|---|
 | `GET /clover/test` | Names the merchant and shows three orders, to prove the token works |
 | `POST /clover/sync` | Pulls orders changed since the last run. `{"days":90}` backfills instead |
-| `GET /sales/items` | Ranked item movement and gross sales for a range of Pacific days |
+| `GET /sales/report` | The sales report for a range of Pacific days |
 
 A sync run stops after 800 orders and answers `more: true`; run it again to
 continue. That cap exists because every D1 call spends one of the worker's
@@ -117,8 +117,34 @@ fifty free-plan subrequests, so orders are written a page at a time in one
 batch each.
 
 Orders are stored under Clover's own ids, so re-syncing overwrites rather than
-duplicates. Line items are deleted and rewritten with their order, so a refund
-or a voided line does not linger as a phantom sale.
+duplicates. Line items and payments are deleted and rewritten with their order,
+so a refund or a voided line does not linger as a phantom sale.
+
+### How the money is split
+
+Clover records different figures in different places, and the report follows it:
+
+- **Gross sales** and **discounts** come off the ticket lines (`sales_items`).
+- **Tax**, **tips**, **refunds** and what was **collected** come off the
+  payments (`sales_payments`) — an order can have several, on a split cheque.
+- **Net sales** is gross less discounts, before tax.
+- **Total collected** is payments plus tips less refunds, so it will not equal
+  net sales.
+
+Nested expansions (`payments.tender`, `payments.refunds`) are not on every
+Clover plan. The sync asks for the richest one, falls back through simpler ones
+on a 400, and remembers the one that worked in `settings.clover_expand`.
+
+### Tests
+
+```bash
+node worker/test/clover.test.mjs
+```
+
+No dependencies and no network — `node:sqlite` stands in for D1 and `fetch` is
+replaced with fixtures. It covers paging, Pacific day and hour bucketing, the
+money arithmetic, refunds, re-syncing not double-counting, an edited order
+replacing its old lines, the subrequest budget, and that a manager is refused.
 
 ## Maintenance
 

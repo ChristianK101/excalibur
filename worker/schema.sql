@@ -198,3 +198,37 @@ CREATE TABLE IF NOT EXISTS clover_items (
   hidden       INTEGER NOT NULL DEFAULT 0,
   synced_at    TEXT NOT NULL
 );
+
+-- Tips, tax and tender live on the payment, not the order, which is why a
+-- sales report needs both. amount_cents excludes the tip, matching Clover.
+CREATE TABLE IF NOT EXISTS sales_payments (
+  id              TEXT PRIMARY KEY,
+  order_id        TEXT NOT NULL,
+  day             TEXT NOT NULL,        -- Pacific calendar day
+  hour            INTEGER,              -- 0-23 Pacific, for the hourly view
+  created_ms      INTEGER NOT NULL,
+  amount_cents    INTEGER NOT NULL DEFAULT 0,
+  tip_cents       INTEGER NOT NULL DEFAULT 0,
+  tax_cents       INTEGER NOT NULL DEFAULT 0,
+  refunded_cents  INTEGER NOT NULL DEFAULT 0,
+  tender          TEXT,                 -- 'Cash', 'Credit Card', ...
+  employee_id     TEXT,
+  result          TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_payments_day ON sales_payments(day);
+CREATE INDEX IF NOT EXISTS idx_sales_payments_order ON sales_payments(order_id);
+
+-- Names for the ids on payments, so tips can be reported per person.
+CREATE TABLE IF NOT EXISTS clover_employees (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  role       TEXT,
+  synced_at  TEXT NOT NULL
+);
+
+-- Added after the first sales release. Ignore "duplicate column name" if these
+-- have already been run.
+ALTER TABLE sales_orders ADD COLUMN hour INTEGER;
+ALTER TABLE sales_items ADD COLUMN discount_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE clover_items ADD COLUMN category TEXT;

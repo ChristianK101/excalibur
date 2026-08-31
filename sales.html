@@ -8,19 +8,27 @@
 <link rel="stylesheet" href="staff.css">
 <link rel="stylesheet" href="auth.css">
 <style>
-.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2.5rem;}
-.stat{padding:1.5rem 1.3rem;border:1px solid rgba(201,168,76,.18);background:rgba(255,255,255,.025);}
-.stat-label{font-size:.58rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.7rem;}
-.stat-value{font-family:'Cormorant Garamond',serif;font-size:2.4rem;font-weight:400;color:var(--gold-light);line-height:1;}
-.stat-sub{font-size:.66rem;color:var(--cream-dim);margin-top:.5rem;}
+.range-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;}
+.card{padding:1.3rem 1.2rem;border:1px solid rgba(201,168,76,.18);background:rgba(255,255,255,.025);}
+.card-label{font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.6rem;}
+.card-value{font-family:'Cormorant Garamond',serif;font-size:1.9rem;font-weight:400;color:var(--gold-light);line-height:1;}
+.card-sub{font-size:.64rem;color:var(--cream-dim);margin-top:.45rem;}
+.card.lead .card-value{font-size:2.5rem;color:var(--cream);}
+.card.sub-card .card-value{font-size:1.5rem;color:var(--cream-dim);}
 .rank{color:var(--gold-dim);font-size:.7rem;width:2.2rem;}
-.bar{height:3px;background:var(--gold);opacity:.55;margin-top:.35rem;border-radius:2px;min-width:2px;}
+.bar{height:3px;background:var(--gold);opacity:.5;margin-top:.35rem;border-radius:2px;min-width:2px;}
 .note-box{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);padding:1rem 1.2rem;font-size:.73rem;color:var(--cream-dim);line-height:1.7;}
 .note-box strong{color:var(--gold);}
 .chips{display:flex;flex-wrap:wrap;gap:.5rem;}
 .chip{padding:.4rem .75rem;border:1px solid rgba(201,168,76,.22);background:rgba(0,0,0,.25);color:var(--cream-dim);font-size:.68rem;border-radius:2px;}
+.toggle{display:inline-flex;align-items:center;gap:.45rem;font-size:.68rem;color:var(--cream-dim);cursor:pointer;}
+.toggle input{accent-color:var(--gold);}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:2rem;}
 #syncOut{display:none;white-space:pre-wrap;font-size:.72rem;line-height:1.6;color:var(--cream-dim);background:rgba(0,0,0,.25);border:1px solid rgba(201,168,76,.18);padding:1rem;margin-top:1rem;}
-@media(max-width:760px){ .stat-grid{grid-template-columns:1fr;} }
+body.hide-tips .tip-col{display:none;}
+@media(max-width:900px){ .summary{grid-template-columns:1fr 1fr;} .split{grid-template-columns:1fr;gap:0;} }
+@media(max-width:520px){ .card-value{font-size:1.6rem;} .card.lead .card-value{font-size:2rem;} }
 </style>
 
 <nav>
@@ -32,7 +40,7 @@
 <div class="wrap">
   <div class="page-head">
     <div class="page-eyebrow">Owner</div>
-    <h1 class="page-title">Sales &amp; <em>Bottle Movement</em></h1>
+    <h1 class="page-title">Sales <em>Report</em></h1>
     <div class="page-meta" id="meta">Loading&hellip;</div>
   </div>
 
@@ -41,36 +49,115 @@
   <div id="body" style="display:none">
     <div class="msg" id="msg"></div>
 
+    <div class="range-row">
+      <button class="btn btn-ghost" onclick="preset('today')">Today</button>
+      <button class="btn btn-ghost" onclick="preset('yesterday')">Yesterday</button>
+      <button class="btn btn-ghost" onclick="preset('week')">This Week</button>
+      <button class="btn btn-ghost" onclick="preset('lastweek')">Last Week</button>
+      <button class="btn btn-ghost" onclick="preset('month')">This Month</button>
+      <button class="btn btn-ghost" onclick="preset('lastmonth')">Last Month</button>
+      <button class="btn btn-ghost" onclick="preset('year')">This Year</button>
+    </div>
+
     <div class="form-row">
       <label class="field">From<input type="date" id="fromDate"></label>
       <label class="field">To<input type="date" id="toDate"></label>
       <button class="btn" onclick="load()">Show</button>
-      <button class="btn btn-ghost" onclick="preset(7)">Last 7 Days</button>
-      <button class="btn btn-ghost" onclick="preset(30)">Last 30 Days</button>
-      <button class="btn btn-ghost" onclick="preset(90)">Last 90 Days</button>
+      <button class="btn btn-ghost" onclick="oneDay()">Just The From Date</button>
+      <label class="toggle"><input type="checkbox" id="tipToggle" checked onchange="tipsOnOff()"> Show tips</label>
     </div>
 
-    <div class="stat-grid">
-      <div class="stat">
-        <div class="stat-label">Gross Sales</div>
-        <div class="stat-value" id="statGross">&mdash;</div>
-        <div class="stat-sub">Order totals as the register rang them</div>
+    <div class="summary">
+      <div class="card lead">
+        <div class="card-label">Net Sales</div>
+        <div class="card-value" id="cNet">&mdash;</div>
+        <div class="card-sub">Items sold, after discounts, before tax</div>
       </div>
-      <div class="stat">
-        <div class="stat-label">Orders</div>
-        <div class="stat-value" id="statOrders">&mdash;</div>
-        <div class="stat-sub" id="subOrders"></div>
+      <div class="card lead">
+        <div class="card-label">Total Collected</div>
+        <div class="card-value" id="cCollected">&mdash;</div>
+        <div class="card-sub">Taken at the register, tips in, refunds out</div>
       </div>
-      <div class="stat">
-        <div class="stat-label">Items Sold</div>
-        <div class="stat-value" id="statUnits">&mdash;</div>
-        <div class="stat-sub" id="subUnits"></div>
+      <div class="card lead tip-col">
+        <div class="card-label">Tips</div>
+        <div class="card-value" id="cTips">&mdash;</div>
+        <div class="card-sub" id="cTipsSub"></div>
+      </div>
+      <div class="card lead">
+        <div class="card-label">Tickets</div>
+        <div class="card-value" id="cOrders">&mdash;</div>
+        <div class="card-sub" id="cAvg"></div>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="card sub-card">
+        <div class="card-label">Gross Sales</div><div class="card-value" id="cGross">&mdash;</div>
+      </div>
+      <div class="card sub-card">
+        <div class="card-label">Discounts</div><div class="card-value" id="cDisc">&mdash;</div>
+      </div>
+      <div class="card sub-card">
+        <div class="card-label">Tax</div><div class="card-value" id="cTax">&mdash;</div>
+      </div>
+      <div class="card sub-card">
+        <div class="card-label">Refunds</div>
+        <div class="card-value" id="cRef">&mdash;</div>
+        <div class="card-sub" id="cRefSub"></div>
       </div>
     </div>
 
     <div class="section">
       <div class="section-head">
-        <div class="section-title" id="tableTitle">Best Sellers</div>
+        <div class="section-title" id="trendTitle">By Day</div>
+        <div class="section-note">Set both dates to the same day to read it hour by hour</div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th id="trendHead">Day</th><th class="num">Tickets</th>
+            <th class="num">Sales</th><th class="num tip-col">Tips</th>
+          </tr></thead>
+          <tbody id="trendRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="section">
+        <div class="section-head"><div class="section-title">Payment Types</div></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Tender</th><th class="num">Count</th><th class="num">Amount</th><th class="num tip-col">Tips</th></tr></thead>
+            <tbody id="tenderRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div class="section-title">By Employee</div></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Name</th><th class="num">Payments</th><th class="num">Sales</th><th class="num tip-col">Tips</th></tr></thead>
+            <tbody id="staffRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">By Category</div></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Category</th><th class="num">Sold</th><th class="num">Revenue</th></tr></thead>
+          <tbody id="catRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title" id="itemTitle">Best Sellers</div>
         <div class="section-note">
           <button class="btn btn-ghost btn-sm" onclick="flip()" id="flipBtn">Show Slowest First</button>
         </div>
@@ -81,7 +168,7 @@
             <th></th><th>Item</th>
             <th class="num">Sold</th><th class="num">Revenue</th><th class="num">Tickets</th>
           </tr></thead>
-          <tbody id="rows"></tbody>
+          <tbody id="itemRows"></tbody>
         </table>
       </div>
       <div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" onclick="showAll()" id="moreBtn" style="display:none">Show All</button></div>
@@ -109,21 +196,24 @@
     </div>
 
     <div class="note-box">
-      <strong>Where these numbers come from.</strong> Every order and line item on the register is copied
-      into the site&rsquo;s own database, so a report never waits on Clover and never changes anything there.
-      Days are Pacific, matching the lounge&rsquo;s day rather than UTC.
+      <strong>How this lines up with Clover.</strong> Gross sales and discounts come off the ticket lines;
+      tax, tips, refunds and what was collected come off the payments, which is where Clover records them.
+      Net sales is gross less discounts, before tax &mdash; the same figure Clover leads its sales report with.
+      Days are Pacific, so a report matches the lounge&rsquo;s day rather than UTC.
       <br><br>
-      <strong>Pull New Sales</strong> fetches whatever has changed since the last pull &mdash; run it whenever
-      you want fresh figures. The backfill buttons are for the first run, or after a long gap. Pulling twice
-      cannot double-count: orders are stored under Clover&rsquo;s own ids, so a second pull overwrites rather
-      than adds.
+      <strong>Total collected</strong> is payments plus tips less refunds. It will not equal net sales,
+      because it includes tax and tips and excludes anything sent back.
       <br><br>
-      <strong>Refunded and exchanged lines are left out</strong> of the item counts. Gross sales is the sum of
-      order totals before any tax or tip breakdown, so treat it as a trading figure, not an accounting one.
+      <strong>Pull New Sales</strong> fetches whatever changed since the last pull. Pulling twice cannot
+      double-count: everything is stored under Clover&rsquo;s own ids, so a second pull overwrites rather than
+      adds. A run stops after 800 orders and says there is more &mdash; press it again to carry on.
       <br><br>
-      <strong>&ldquo;Sold Nothing&rdquo;</strong> lists items on the Clover menu that rang up zero in the range.
-      Hidden items are skipped. If a bottle is missing from that list and from the table above, it is not on
-      the register&rsquo;s menu at all.
+      <strong>This is a trading report, not a tax return.</strong> It shows what the register did. Anything
+      that happens outside Clover &mdash; cash paid out, house comps rung as something else, an order voided
+      before it was paid &mdash; is not here.
+      <br><br>
+      <strong>Only owner accounts can open this page.</strong> Managers reach the Team and Payroll pages;
+      neither shows sales.
     </div>
   </div>
 </div>
@@ -131,40 +221,82 @@
 <script src="auth.js"></script>
 <script src="staff.js"></script>
 <script>
-const TOP_N = 20;          // how many rows before "Show All"
-let data = null;           // last response
-let slowest = false;       // sort direction of the item table
-let expanded = false;
+const TOP_N = 20;
+let data = null, slowest = false, expanded = false;
 
 function isoDay(d){
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
 }
 
-function preset(days){
-  const to = new Date();
-  const from = new Date(Date.now() - (days - 1) * 86400000);
-  document.getElementById('fromDate').value = isoDay(from);
-  document.getElementById('toDate').value = isoDay(to);
+/** Pacific "now" as a date object safe to do calendar arithmetic on. */
+function pacificToday(){ return new Date(isoDay(new Date()) + 'T12:00:00Z'); }
+function shift(d, days){ const n = new Date(d); n.setUTCDate(n.getUTCDate() + days); return n; }
+function set(from, to){
+  document.getElementById('fromDate').value = from.toISOString().slice(0, 10);
+  document.getElementById('toDate').value = to.toISOString().slice(0, 10);
   load();
+}
+
+function preset(which){
+  const today = pacificToday();
+  const sunday = shift(today, -today.getUTCDay());
+  const firstOfMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1, 12));
+
+  if (which === 'today')      return set(today, today);
+  if (which === 'yesterday')  return set(shift(today, -1), shift(today, -1));
+  if (which === 'week')       return set(sunday, today);
+  if (which === 'lastweek')   return set(shift(sunday, -7), shift(sunday, -1));
+  if (which === 'month')      return set(firstOfMonth, today);
+  if (which === 'lastmonth'){
+    const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1, 12));
+    return set(first, shift(firstOfMonth, -1));
+  }
+  if (which === 'year')       return set(new Date(Date.UTC(today.getUTCFullYear(), 0, 1, 12)), today);
+}
+
+/** Read one date on its own, which switches the report to an hourly view. */
+function oneDay(){
+  const from = document.getElementById('fromDate').value;
+  if (!from) return flash('Pick a From date first.', 'err');
+  document.getElementById('toDate').value = from;
+  load();
+}
+
+function tipsOnOff(){
+  document.body.classList.toggle('hide-tips', !document.getElementById('tipToggle').checked);
 }
 
 function flip(){
   slowest = !slowest;
   expanded = false;
   document.getElementById('flipBtn').textContent = slowest ? 'Show Best Sellers' : 'Show Slowest First';
-  document.getElementById('tableTitle').textContent = slowest ? 'Slowest Movers' : 'Best Sellers';
+  document.getElementById('itemTitle').textContent = slowest ? 'Slowest Movers' : 'Best Sellers';
   renderItems();
 }
 
 function showAll(){ expanded = true; renderItems(); }
 
+function hourLabel(h){
+  const n = Number(h);
+  if (!Number.isFinite(n)) return '—';
+  const ampm = n < 12 ? 'AM' : 'PM';
+  return ((n % 12) || 12) + ' ' + ampm;
+}
+
+function rows(tbody, list, cols, emptyText){
+  const tb = document.getElementById(tbody);
+  tb.innerHTML = list.length
+    ? list.map(r => '<tr>' + cols(r) + '</tr>').join('')
+    : '<tr><td colspan="4" class="empty">' + emptyText + '</td></tr>';
+}
+
 function renderItems(){
-  const tb = document.getElementById('rows');
+  const tb = document.getElementById('itemRows');
   const all = (data.items || []).slice();
   if (slowest) all.reverse();
 
   if (!all.length){
-    tb.innerHTML = '<tr><td colspan="5" class="empty">No sales stored for this range yet. Pull from Clover below.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="5" class="empty">Nothing sold in this range.</td></tr>';
     document.getElementById('moreBtn').style.display = 'none';
     return;
   }
@@ -178,8 +310,7 @@ function renderItems(){
     const place = slowest ? all.length - n : n + 1;
     return '<tr>' +
       '<td class="rank">' + place + '</td>' +
-      '<td>' + esc(i.name) +
-        '<div class="bar" style="width:' + Math.max(2, (i.units / top) * 100) + '%"></div></td>' +
+      '<td>' + esc(i.name) + '<div class="bar" style="width:' + Math.max(2, (i.units / top) * 100) + '%"></div></td>' +
       '<td class="num count">' + i.units + '</td>' +
       '<td class="num">' + money(i.revenue) + '</td>' +
       '<td class="num muted">' + i.orders + '</td>' +
@@ -194,14 +325,52 @@ function renderItems(){
 function render(d){
   data = d;
   expanded = false;
+  const t = d.totals;
 
-  const units = (d.items || []).reduce((t, i) => t + i.units, 0);
-  document.getElementById('statGross').textContent = money(d.grossSales);
-  document.getElementById('statOrders').textContent = d.orders;
-  document.getElementById('statUnits').textContent = Math.round(units * 100) / 100;
-  document.getElementById('subOrders').textContent = d.orders
-    ? 'averaging ' + money(d.grossSales / d.orders) + ' a ticket' : 'nothing stored for these days';
-  document.getElementById('subUnits').textContent = (d.items || []).length + ' different items';
+  document.getElementById('cNet').textContent = money(t.netSales);
+  document.getElementById('cCollected').textContent = money(t.collected);
+  document.getElementById('cTips').textContent = money(t.tips);
+  document.getElementById('cOrders').textContent = t.orders;
+  document.getElementById('cAvg').textContent = t.avgTicket ? money(t.avgTicket) + ' a ticket' : '';
+  document.getElementById('cTipsSub').textContent = t.netSales
+    ? (t.tips / t.netSales * 100).toFixed(1) + '% of net sales' : '';
+  document.getElementById('cGross').textContent = money(t.grossSales);
+  document.getElementById('cDisc').textContent = money(t.discounts);
+  document.getElementById('cTax').textContent = money(t.tax);
+  document.getElementById('cRef').textContent = money(t.refunds);
+  document.getElementById('cRefSub').textContent = t.refundedItems
+    ? t.refundedItems + ' item' + (t.refundedItems === 1 ? '' : 's') + ' sent back' : '';
+
+  // Trend
+  const byHour = d.bucket === 'hour';
+  document.getElementById('trendTitle').textContent = byHour ? 'By Hour' : 'By Day';
+  document.getElementById('trendHead').textContent = byHour ? 'Hour' : 'Day';
+  rows('trendRows', d.trend || [], r =>
+    '<td>' + (byHour ? hourLabel(r.key) : fmtDay(r.key + 'T12:00:00Z')) + '</td>' +
+    '<td class="num muted">' + r.orders + '</td>' +
+    '<td class="num count">' + money(r.sales) + '</td>' +
+    '<td class="num tip-col">' + money(r.tips) + '</td>',
+    'No tickets in this range.');
+
+  rows('tenderRows', d.tenders || [], r =>
+    '<td>' + esc(r.name) + '</td>' +
+    '<td class="num muted">' + r.count + '</td>' +
+    '<td class="num count">' + money(r.amount) + '</td>' +
+    '<td class="num tip-col">' + money(r.tips) + '</td>',
+    'No payments recorded.');
+
+  rows('staffRows', d.staff || [], r =>
+    '<td>' + esc(r.name) + '</td>' +
+    '<td class="num muted">' + r.payments + '</td>' +
+    '<td class="num count">' + money(r.sales) + '</td>' +
+    '<td class="num tip-col">' + money(r.tips) + '</td>',
+    'No payments recorded.');
+
+  rows('catRows', d.categories || [], r =>
+    '<td>' + esc(r.name) + '</td>' +
+    '<td class="num">' + r.units + '</td>' +
+    '<td class="num count">' + money(r.revenue) + '</td>',
+    'Nothing sold in this range.');
 
   renderItems();
 
@@ -213,7 +382,9 @@ function render(d){
     : '<div class="empty">Everything on the menu sold at least once' +
       ((d.items || []).length ? '.' : ' — or the menu has not been pulled from Clover yet.') + '</div>';
 
-  document.getElementById('meta').textContent = d.from + ' to ' + d.to + ' · Pacific' +
+  const span = d.from === d.to ? fmtDay(d.from + 'T12:00:00Z')
+                               : fmtDay(d.from + 'T12:00:00Z') + ' to ' + fmtDay(d.to + 'T12:00:00Z');
+  document.getElementById('meta').textContent = span + ' · Pacific' +
     (d.syncedAt ? ' · last pulled ' + fmtWhen(d.syncedAt) : ' · never pulled from Clover');
 }
 
@@ -222,15 +393,16 @@ async function sync(days, btn){
   out.style.display = '';
   out.textContent = days ? 'Pulling ' + days + ' days from Clover… this can take a minute.'
                          : 'Pulling anything new from Clover…';
-  const buttons = [...document.querySelectorAll('.form-row .btn')];
+  const buttons = [...document.querySelectorAll('.form-row .btn, .range-row .btn')];
   buttons.forEach(b => b.disabled = true);
   try {
     const d = await authApi('/clover/sync', days ? { days } : {});
     if (d.ok){
       const lines = [
         d.ordersSynced + ' order' + (d.ordersSynced === 1 ? '' : 's') + ' stored, ' +
-          d.itemsSynced + ' line items',
-        d.menuItems != null ? d.menuItems + ' menu items refreshed' : 'Menu could not be read: ' + d.catalogError
+          d.itemsSynced + ' line items, ' + d.paymentsSynced + ' payments',
+        d.menuItems != null ? d.menuItems + ' menu items refreshed' : 'Menu could not be read: ' + d.catalogError,
+        d.employees != null ? d.employees + ' register staff refreshed' : 'Staff list could not be read: ' + d.employeeError
       ];
       if (d.more) lines.push('There was more than one run could carry — press Pull New Sales again to continue.');
       out.textContent = lines.join('\n');
@@ -248,12 +420,13 @@ async function sync(days, btn){
 async function load(){
   const from = document.getElementById('fromDate').value;
   const to = document.getElementById('toDate').value;
+  if (from && to && from > to) return flash('The From date is after the To date.', 'err');
   const q = from && to ? ('?from=' + from + '&to=' + to) : '';
-  render(await authApi('/sales/items' + q));
+  render(await authApi('/sales/report' + q));
 }
 
 staffBoot('owner', async () => {
-  if (!document.getElementById('fromDate').value) { preset(30); return; }
+  if (!document.getElementById('fromDate').value) { preset('month'); return; }
   await load();
 });
 </script>
