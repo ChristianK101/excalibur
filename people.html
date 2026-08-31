@@ -41,6 +41,17 @@
 
     <div class="section">
       <div class="section-head">
+        <div class="section-title">Clover Connection</div>
+        <div class="section-note">Sales data for the Clairemont Mesa lounge</div>
+      </div>
+      <div class="form-row">
+        <button class="btn" onclick="testClover(this)">Test Connection</button>
+      </div>
+      <pre id="cloverOut" style="display:none;white-space:pre-wrap;word-break:break-word;font-size:.72rem;line-height:1.6;color:var(--cream-dim);background:rgba(0,0,0,.25);border:1px solid rgba(201,168,76,.18);padding:1rem;overflow-x:auto"></pre>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
         <div class="section-title">Activity Log</div>
         <div class="section-note">Every change made by you or a manager &middot; newest first</div>
       </div>
@@ -100,6 +111,34 @@ async function setRole(userId, role, el){
     flash(err.message, 'err');
     el.disabled = false;
   }
+}
+
+async function testClover(btn){
+  const out = document.getElementById('cloverOut');
+  out.style.display = '';
+  out.textContent = 'Asking Clover…';
+  btn.disabled = true;
+  try {
+    const d = await authApi('/clover/test');
+    if (d.ok){
+      const lines = ['Connected to: ' + d.merchantName + ' (' + (d.currency || 'USD') + ')',
+                     'Recent orders returned: ' + d.ordersReturned, ''];
+      (d.sample || []).forEach(o => {
+        lines.push('Order ' + o.id + '  ' + (o.state || '') + '  total ' +
+                   (o.total == null ? '?' : '$' + (o.total / 100).toFixed(2)));
+        (o.lineItems || []).forEach(li =>
+          lines.push('    ' + li.name + '  $' + ((li.price || 0) / 100).toFixed(2)));
+      });
+      if (!d.ordersReturned) lines.push('No orders came back — that is fine if the register has been quiet.');
+      out.textContent = lines.join('\n');
+    } else {
+      out.textContent = 'Failed at the ' + (d.step || '?') + ' step (HTTP ' + d.status + ')\n\n' +
+                        d.error + (d.hint ? '\n\n' + d.hint : '');
+    }
+  } catch (err){
+    out.textContent = err.message;
+  }
+  btn.disabled = false;
 }
 
 async function load(){

@@ -648,6 +648,89 @@ async function handleEditEntry(request, env){
   return json({ ok: true }, 200, request, env);
 }
 
+/* ── Clover ── */
+
+/**
+ * One call to Clover for this merchant. The token is a Worker secret and
+ * never leaves the server; nothing here is reachable from a browser without
+ * an owner session.
+ */
+async function cloverFetch(env, path, params){
+  const base = env.CLOVER_BASE || 'https://api.clover.com';
+  const url = new URL(base + '/v3/merchants/' + env.CLOVER_MERCHANT_ID + path);
+  for (const [k, v] of Object.entries(params || {})) url.searchParams.set(k, v);
+
+  let res, text = '';
+  try {
+    res = await fetch(url.toString(), {
+      headers: { Authorization: 'Bearer ' + env.CLOVER_TOKEN, Accept: 'application/json' }
+    });
+    text = await res.text();
+  } catch (err){
+    return { ok: false, status: 0, error: 'Could not reach Clover: ' + (err && err.message) };
+  }
+  let data = null;
+  try { data = JSON.parse(text); } catch (e){}
+  if (!res.ok){
+    return { ok: false, status: res.status, error: (data && (data.message || data.error)) || text.slice(0, 200) };
+  }
+  return { ok: true, status: res.status, data };
+}
+
+/**
+ * Checks the connection and reports what the data actually looks like, so the
+ * sync can be written against the real shape rather than an assumed one.
+ */
+async function handleCloverTest(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+
+  if (!env.CLOVER_TOKEN){
+    return json({ ok: false, error: 'No CLOVER_TOKEN secret is set on this worker.' }, 400, request, env);
+  }
+  if (!env.CLOVER_MERCHANT_ID){
+    return json({ ok: false, error: 'No CLOVER_MERCHANT_ID is set.' }, 400, request, env);
+  }
+
+  const merchant = await cloverFetch(env, '');
+  if (!merchant.ok){
+    return json({
+      ok: false, step: 'merchant', status: merchant.status, error: merchant.error,
+      hint: merchant.status === 401 ? 'The token was rejected. Check it was copied whole, and created while the Clairemont lounge was the selected merchant.'
+          : merchant.status === 403 ? 'The token is valid but lacks permission. It needs read access to Merchant, Orders, Payments and Inventory.'
+          : 'Check the merchant id and that this Clover plan includes API access.'
+    }, 200, request, env);
+  }
+
+  const orders = await cloverFetch(env, '/orders', { limit: 3, expand: 'lineItems' });
+  if (!orders.ok){
+    return json({
+      ok: false, step: 'orders', status: orders.status, error: orders.error,
+      merchantName: merchant.data && merchant.data.name,
+      hint: 'The merchant call worked, so the token is good but may lack Orders read permission.'
+    }, 200, request, env);
+  }
+
+  // A trimmed sample: enough to confirm the field names, no customer details.
+  const sample = (orders.data.elements || []).map(o => ({
+    id: o.id,
+    state: o.state,
+    createdTime: o.createdTime,
+    total: o.total,
+    lineItems: ((o.lineItems && o.lineItems.elements) || []).map(li => ({
+      name: li.name, price: li.price, itemId: li.item && li.item.id
+    }))
+  }));
+
+  return json({
+    ok: true,
+    merchantName: merchant.data && merchant.data.name,
+    currency: merchant.data && merchant.data.currency,
+    ordersReturned: sample.length,
+    sample
+  }, 200, request, env);
+}
+
 /* ── payroll ── */
 
 /** Sunday-start workweek key for a Pacific calendar day. */
@@ -928,6 +1011,7 @@ export default {
       if (url.pathname === '/team/clocklog' && request.method === 'GET')  return await handleClockLog(request, env);
       if (url.pathname === '/team/location' && request.method === 'POST') return await handleSetLocation(request, env);
       if (url.pathname === '/payroll'       && request.method === 'GET')  return await handlePayroll(request, env);
+      if (url.pathname === '/clover/test'   && request.method === 'GET')  return await handleCloverTest(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);
