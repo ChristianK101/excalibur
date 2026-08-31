@@ -109,8 +109,13 @@ function authBuildModal(){
           '<label for="authEmail">Email</label>' +
           '<input type="email" id="authEmail" name="email" autocomplete="email" required maxlength="160">' +
         '</div>' +
-        '<div class="auth-field">' +
-          '<label for="authPassword">Password</label>' +
+        '<div class="auth-field" id="authCodeField">' +
+          '<label for="authCode">6-Digit Code</label>' +
+          '<input type="text" id="authCode" name="code" inputmode="numeric" autocomplete="one-time-code" ' +
+                 'maxlength="6" placeholder="000000" style="letter-spacing:.4em;text-align:center">' +
+        '</div>' +
+        '<div class="auth-field" id="authPasswordField">' +
+          '<label for="authPassword" id="authPasswordLabel">Password</label>' +
           '<input type="password" id="authPassword" name="password" required minlength="10" maxlength="200">' +
         '</div>' +
         '<label class="auth-check" id="authAgeCheck">' +
@@ -128,26 +133,66 @@ function authBuildModal(){
 
 let authMode = 'signup';
 
+/* What each screen shows. 'forgot' asks for the address; 'reset' takes the
+   code that was emailed and the new password. */
+const AUTH_SCREENS = {
+  signup: {
+    title: 'Create Account', sub: 'Join the Excalibur roster.',
+    fields: ['name', 'email', 'password', 'age'], submit: 'Create Account',
+    passwordLabel: 'Password', focus: 'authName'
+  },
+  signin: {
+    title: 'Welcome Back', sub: 'Sign in to your Excalibur account.',
+    fields: ['email', 'password'], submit: 'Sign In',
+    passwordLabel: 'Password', focus: 'authEmail'
+  },
+  forgot: {
+    title: 'Forgot Password', sub: 'We will email you a code to reset it.',
+    fields: ['email'], submit: 'Email Me A Code', focus: 'authEmail'
+  },
+  reset: {
+    title: 'Enter Your Code', sub: 'Check your email, then choose a new password.',
+    fields: ['email', 'code', 'password'], submit: 'Set New Password',
+    passwordLabel: 'New Password', focus: 'authCode'
+  }
+};
+
 function authOpen(mode){
   authBuildModal();
-  authMode = mode === 'signin' ? 'signin' : 'signup';
-  const signup = authMode === 'signup';
-  document.getElementById('authTitle').textContent = signup ? 'Create Account' : 'Welcome Back';
-  document.getElementById('authSub').textContent = signup
-    ? 'Join the Excalibur roster.'
-    : 'Sign in to your Excalibur account.';
-  document.getElementById('authNameField').style.display = signup ? '' : 'none';
-  document.getElementById('authAgeCheck').style.display = signup ? '' : 'none';
-  document.getElementById('authName').required = signup;
-  document.getElementById('authPassword').minLength = signup ? 10 : 1;
-  document.getElementById('authSubmit').textContent = signup ? 'Create Account' : 'Sign In';
-  document.getElementById('authSwitch').innerHTML = signup
-    ? 'Already have an account? <button type="button" onclick="authOpen(\'signin\')">Sign in</button>'
-    : 'New here? <button type="button" onclick="authOpen(\'signup\')">Create an account</button>';
+  authMode = AUTH_SCREENS[mode] ? mode : 'signup';
+  const s = AUTH_SCREENS[authMode];
+  const has = f => s.fields.includes(f);
+
+  document.getElementById('authTitle').textContent = s.title;
+  document.getElementById('authSub').textContent = s.sub;
+  document.getElementById('authNameField').style.display = has('name') ? '' : 'none';
+  document.getElementById('authCodeField').style.display = has('code') ? '' : 'none';
+  document.getElementById('authPasswordField').style.display = has('password') ? '' : 'none';
+  document.getElementById('authAgeCheck').style.display = has('age') ? '' : 'none';
+  document.getElementById('authName').required = has('name');
+  document.getElementById('authPassword').required = has('password');
+  // Sign-in accepts whatever was set before the minimum existed; the two
+  // screens that set a password enforce it.
+  document.getElementById('authPassword').minLength = authMode === 'signin' ? 1 : 10;
+  if (s.passwordLabel) document.getElementById('authPasswordLabel').textContent = s.passwordLabel;
+  document.getElementById('authSubmit').textContent = s.submit;
+
+  document.getElementById('authSwitch').innerHTML =
+    authMode === 'signup' ? 'Already have an account? <button type="button" onclick="authOpen(\'signin\')">Sign in</button>'
+  : authMode === 'signin' ? 'Forgot your password? <button type="button" onclick="authOpen(\'forgot\')">Reset it</button>' +
+                            '<br>New here? <button type="button" onclick="authOpen(\'signup\')">Create an account</button>'
+  : authMode === 'reset'  ? 'Code not arrived? <button type="button" onclick="authOpen(\'forgot\')">Send another</button>' +
+                            '<br><button type="button" onclick="authOpen(\'signin\')">Back to sign in</button>'
+  : '<button type="button" onclick="authOpen(\'signin\')">Back to sign in</button>';
+
+  // Never carry a password or a code between screens — after signing out, the
+  // next person to open this must not find the last one's still typed in.
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authCode').value = '';
   authMessage('');
   document.getElementById('authOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-  setTimeout(() => { document.getElementById(signup ? 'authName' : 'authEmail').focus(); }, 60);
+  setTimeout(() => { document.getElementById(s.focus).focus(); }, 60);
 }
 
 function authClose(){
@@ -164,43 +209,71 @@ function authMessage(text, kind){
   el.className = 'auth-msg' + (text ? ' show ' + (kind || 'error') : '');
 }
 
+/** Signs the person in from a register / login / reset response. */
+function authAccept(data, note){
+  authSetToken(data.token);
+  authUser = data.user;
+  authCacheRole(authUser.role);
+  authRenderNav();
+  authMessage(note, 'ok');
+  setTimeout(authClose, 900);
+}
+
 async function authSubmit(e){
   e.preventDefault();
   const btn = document.getElementById('authSubmit');
-  const signup = authMode === 'signup';
+  const mode = authMode;
   const name = document.getElementById('authName').value.trim();
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
+  const code = document.getElementById('authCode').value.replace(/\D/g, '');
 
-  if (signup && !name){ authMessage('Please enter your name.'); return; }
+  if (mode === 'signup' && !name){ authMessage('Please enter your name.'); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){
     authMessage('Please enter a valid email address.'); return;
   }
-  if (!password){ authMessage('Please enter your password.'); return; }
-  if (signup){
-    if (password.length < 10){ authMessage('Password must be at least 10 characters.'); return; }
-    if (!document.getElementById('authAge').checked){
-      authMessage('You must confirm you are 21 or older.'); return;
+  if (mode === 'reset' && code.length !== 6){
+    authMessage('Enter the 6-digit code from your email.'); return;
+  }
+  if (mode !== 'forgot'){
+    if (!password){ authMessage('Please enter your password.'); return; }
+    if (mode !== 'signin' && password.length < 10){
+      authMessage('Password must be at least 10 characters.'); return;
     }
+  }
+  if (mode === 'signup' && !document.getElementById('authAge').checked){
+    authMessage('You must confirm you are 21 or older.'); return;
   }
 
   btn.disabled = true;
   const original = btn.textContent;
-  btn.textContent = signup ? 'Creating…' : 'Signing in…';
+  btn.textContent = mode === 'signup' ? 'Creating…'
+                  : mode === 'signin' ? 'Signing in…'
+                  : mode === 'forgot' ? 'Sending…' : 'Saving…';
   try {
-    const payload = signup ? { name, email, password } : { email, password };
-    const data = await authApi(signup ? '/auth/register' : '/auth/login', payload);
-    authSetToken(data.token);
-    authUser = data.user;
-    authCacheRole(authUser.role);
-    authRenderNav();
-    authMessage(signup ? 'Account created. Welcome to Excalibur.' : 'Signed in.', 'ok');
-    setTimeout(authClose, 700);
+    if (mode === 'forgot'){
+      const d = await authApi('/auth/reset/request', { email });
+      authOpen('reset');
+      // Deliberately the same whether or not that address has an account.
+      authMessage('If that address has an account, a code is on its way. ' +
+                  'It lasts ' + (d.expiresInMinutes || 15) + ' minutes.', 'ok');
+      return;
+    }
+    if (mode === 'reset'){
+      authAccept(await authApi('/auth/reset/confirm', { email, code, password }),
+                 'Password changed. You are signed in.');
+      return;
+    }
+    const payload = mode === 'signup' ? { name, email, password } : { email, password };
+    authAccept(await authApi(mode === 'signup' ? '/auth/register' : '/auth/login', payload),
+               mode === 'signup' ? 'Account created. Welcome to Excalibur.' : 'Signed in.');
   } catch (err){
     authMessage(err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = original;
+    // Moving to another screen relabels the button; only put the old label
+    // back if we are still on the screen that changed it.
+    if (authMode === mode) btn.textContent = original;
   }
 }
 

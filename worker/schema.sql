@@ -30,6 +30,20 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 
 CREATE INDEX IF NOT EXISTS idx_attempts_key ON login_attempts(key, created_at);
 
+-- Emailed password reset codes. Only the SHA-256 hash of a code is stored, on
+-- the same reasoning as sessions: the table itself is never enough to get in.
+-- One live code per person; asking for another retires the last.
+CREATE TABLE IF NOT EXISTS password_resets (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash   TEXT NOT NULL,
+  expires_at  TEXT NOT NULL,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_resets_user ON password_resets(user_id, created_at);
+
 -- Site analytics. `day` is the calendar day in America/Los_Angeles, so
 -- "today" on the dashboard means today in San Diego, not UTC.
 CREATE TABLE IF NOT EXISTS events (

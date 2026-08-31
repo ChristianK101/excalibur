@@ -15,7 +15,11 @@
     // not a credential; the API token is a dashboard secret (CLOVER_TOKEN).
     // The account also holds Excalibur Lounge RB and Las Villas Cigars, so
     // this pins reporting to the one location.
-    "CLOVER_MERCHANT_ID": "0THXDWP2MC91Y"
+    "CLOVER_MERCHANT_ID": "0THXDWP2MC91Y",
+
+    // Sender for password reset emails. The domain must be verified with
+    // Resend or the mail is refused. RESEND_API_KEY is a dashboard secret.
+    "RESET_FROM": "Excalibur Lounge <no-reply@excaliburloungesd.com>"
     // OWNER_EMAIL is set as a secret, not here — see README.md
   },
   "d1_databases": [

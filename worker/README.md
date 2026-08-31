@@ -78,6 +78,35 @@ wrangler d1 execute excalibur-accounts --remote \
   which emails are registered.
 - **CORS** is restricted to the origins in `ALLOWED_ORIGINS`.
 
+## Forgotten passwords
+
+A password cannot be recovered — only hashes are stored, which is the point.
+Instead, `Forgot your password?` on the sign-in modal emails a six-digit code.
+
+Setup, once:
+
+1. Create a [Resend](https://resend.com) account (free tier is ample here).
+2. Add `excaliburloungesd.com` as a domain and put the DNS records it gives you
+   on the domain. Without this, mail to anywhere but your own address bounces.
+3. `wrangler secret put RESEND_API_KEY`, or add it as a Secret in the dashboard.
+
+`RESET_FROM` lives in `wrangler.jsonc` and must be an address on the verified
+domain. Until `RESEND_API_KEY` exists the endpoint answers 503 and says the
+feature is not set up — deliberately, before any account lookup happens, so an
+unconfigured service can never be mistaken for "no such account".
+
+How it is kept safe:
+
+- **No enumeration.** Requesting a code answers identically whether or not the
+  address has an account, and a failure to send is logged, never returned.
+- **Only the code's SHA-256 hash is stored**, same as session tokens.
+- **One live code per person.** Asking for another retires the last.
+- **Fifteen minutes, five guesses.** Either limit killing the code.
+- **Four requests per email+IP per hour**, ten confirm attempts.
+- **Every session is dropped on reset**, so anyone else holding that account
+  loses it at exactly the moment they should.
+- The reset is written to `audit_log`.
+
 ### Known trade-off
 
 The session token is kept in `localStorage` and sent as a Bearer header. This is
@@ -138,13 +167,21 @@ on a 400, and remembers the one that worked in `settings.clover_expand`.
 ### Tests
 
 ```bash
-node worker/test/clover.test.mjs
+node worker/test/clover.test.mjs    # Clover sync and the sales report
+node worker/test/reset.test.mjs     # emailed password resets
 ```
 
 No dependencies and no network — `node:sqlite` stands in for D1 and `fetch` is
-replaced with fixtures. It covers paging, Pacific day and hour bucketing, the
-money arithmetic, refunds, re-syncing not double-counting, an edited order
-replacing its old lines, the subrequest budget, and that a manager is refused.
+replaced with fixtures. Between them they cover paging, Pacific day and hour
+bucketing, the money arithmetic, refunds, re-syncing not double-counting, an
+edited order replacing its old lines, the subrequest budget, that a manager is
+refused, and every property listed under Forgotten passwords above.
+
+The browser half of the reset flow needs Playwright:
+
+```bash
+npm install playwright && node test/ui-reset.mjs
+```
 
 ## Maintenance
 

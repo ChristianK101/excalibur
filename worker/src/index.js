@@ -9,6 +9,8 @@
  *   POST /auth/login     {email, password}       -> {token, user}
  *   POST /auth/logout    (Bearer token)          -> {ok:true}
  *   GET  /auth/me        (Bearer token)          -> {user}
+ *   POST /auth/reset/request {email}             -> {ok:true}   (emails a code)
+ *   POST /auth/reset/confirm {email,code,password} -> {token, user}
  *
  * Passwords: PBKDF2-SHA256, per-user 16-byte salt, iteration count stored
  *            per user so it can be raised without invalidating passwords.
@@ -121,12 +123,12 @@ async function createSession(env, userId){
 }
 
 /** Throttle by email+IP so a single account cannot be hammered. */
-async function tooManyAttempts(env, key){
-  const since = new Date(Date.now() - ATTEMPT_WINDOW_MIN * 60000).toISOString();
+async function tooManyAttempts(env, key, max, windowMin){
+  const since = new Date(Date.now() - (windowMin || ATTEMPT_WINDOW_MIN) * 60000).toISOString();
   const row = await env.DB.prepare(
     'SELECT COUNT(*) AS n FROM login_attempts WHERE key = ? AND created_at > ?'
   ).bind(key, since).first();
-  return (row?.n || 0) >= MAX_FAILED_ATTEMPTS;
+  return (row?.n || 0) >= (max || MAX_FAILED_ATTEMPTS);
 }
 
 async function recordAttempt(env, key){
@@ -1378,6 +1380,182 @@ async function handleLogin(request, env){
   }, 200, request, env);
 }
 
+/* ── forgotten passwords ── */
+
+const RESET_CODE_MINUTES = 15;
+const RESET_MAX_ATTEMPTS = 5;    // guesses allowed against one code
+const RESET_MAX_REQUESTS = 4;    // codes per email+IP per hour
+
+/**
+ * A six-digit code, drawn without modulo bias. Short enough to type from a
+ * phone; the attempt limit and the fifteen-minute life are what make it safe,
+ * not its length.
+ */
+function resetCode(){
+  const buf = new Uint32Array(1);
+  const limit = Math.floor(4294967296 / 1000000) * 1000000;
+  do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+  return String(buf[0] % 1000000).padStart(6, '0');
+}
+
+/** Sends through Resend. The API key is a Worker secret and never reaches a browser. */
+async function sendEmail(env, to, subject, text, html){
+  const from = env.RESET_FROM || 'Excalibur Lounge <no-reply@excaliburloungesd.com>';
+  let res, body = '';
+  try {
+    res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + env.RESEND_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ from, to: [to], subject, text, html })
+    });
+    body = await res.text();
+  } catch (err){
+    return { ok: false, status: 0, error: 'Could not reach the email service: ' + (err && err.message) };
+  }
+  if (!res.ok) return { ok: false, status: res.status, error: body.slice(0, 300) };
+  return { ok: true };
+}
+
+function resetEmailText(name, code){
+  return `Hello ${name},\n\n` +
+    `Your Excalibur password reset code is ${code}\n\n` +
+    `It works for the next ${RESET_CODE_MINUTES} minutes and can only be used once.\n\n` +
+    `If you did not ask to reset your password, you can ignore this email — ` +
+    `nothing has changed on your account.\n\n` +
+    `Excalibur Cigar & Scotch Lounge`;
+}
+
+function resetEmailHtml(name, code){
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return `<div style="font-family:Helvetica,Arial,sans-serif;background:#140c05;padding:32px;color:#e8dfcc">
+  <div style="max-width:440px;margin:0 auto;background:#1d1209;border:1px solid #4a3a1c;padding:32px">
+    <div style="font-size:22px;color:#c9a84c;letter-spacing:.05em">Excalibur</div>
+    <p style="font-size:15px;line-height:1.6">Hello ${esc(name)},</p>
+    <p style="font-size:15px;line-height:1.6">Your password reset code is:</p>
+    <div style="font-size:34px;letter-spacing:.35em;color:#c9a84c;font-weight:600;
+                text-align:center;padding:18px 0;border:1px solid #4a3a1c;margin:20px 0">${esc(code)}</div>
+    <p style="font-size:13px;line-height:1.6;color:#b3a68c">
+      It works for the next ${RESET_CODE_MINUTES} minutes and can only be used once.</p>
+    <p style="font-size:13px;line-height:1.6;color:#b3a68c">
+      If you did not ask to reset your password, ignore this email &mdash; nothing on your
+      account has changed.</p>
+    <p style="font-size:12px;color:#8a7f6a;margin-top:26px">Excalibur Cigar &amp; Scotch Lounge</p>
+  </div>
+</div>`;
+}
+
+/**
+ * Step one: email a code. The answer is the same whether or not the address
+ * has an account, so this cannot be used to find out who is registered.
+ */
+async function handleResetRequest(request, env){
+  const body = await request.json().catch(() => ({}));
+  const email = normalizeEmail(body.email);
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+
+  if (!validEmail(email)) return json({ error: 'Please enter a valid email address.' }, 400, request, env);
+
+  // Checked before anything is looked up, so an unconfigured service can
+  // never be read as "that address has no account".
+  if (!env.RESEND_API_KEY){
+    return json({ error: 'Password reset by email is not set up on this site yet.' }, 503, request, env);
+  }
+
+  const key = 'reset|' + email + '|' + ip;
+  if (await tooManyAttempts(env, key, RESET_MAX_REQUESTS, 60)){
+    return json({ error: 'Too many reset requests. Please wait an hour and try again.' }, 429, request, env);
+  }
+  await recordAttempt(env, key);
+
+  const user = await env.DB.prepare('SELECT id, name, email FROM users WHERE email = ?')
+    .bind(email).first();
+
+  if (user){
+    const code = resetCode();
+    const now = new Date();
+    // Asking for a new code retires the old one.
+    await env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id).run();
+    await env.DB.prepare(
+      'INSERT INTO password_resets (user_id, code_hash, expires_at, created_at) VALUES (?, ?, ?, ?)'
+    ).bind(user.id, await sha256Hex(code),
+           new Date(now.getTime() + RESET_CODE_MINUTES * 60000).toISOString(),
+           now.toISOString()).run();
+
+    const sent = await sendEmail(env, user.email,
+      'Your Excalibur password reset code',
+      resetEmailText(user.name, code), resetEmailHtml(user.name, code));
+    // A failure is logged for the owner, never reported back: which addresses
+    // exist is not something this endpoint may reveal.
+    if (!sent.ok) console.error('reset email failed', sent.status, sent.error);
+  }
+
+  return json({ ok: true, expiresInMinutes: RESET_CODE_MINUTES }, 200, request, env);
+}
+
+/** Step two: check the code, set the new password, and sign the person in. */
+async function handleResetConfirm(request, env){
+  const body = await request.json().catch(() => ({}));
+  const email = normalizeEmail(body.email);
+  const code = String(body.code || '').replace(/\D/g, '');
+  const password = String(body.password || '');
+  const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
+  const key = 'resetc|' + email + '|' + ip;
+
+  if (password.length < 10) return json({ error: 'Password must be at least 10 characters.' }, 400, request, env);
+  if (password.length > 200) return json({ error: 'Password is too long.' }, 400, request, env);
+  if (await tooManyAttempts(env, key, 10, 60)){
+    return json({ error: 'Too many attempts. Please wait an hour and try again.' }, 429, request, env);
+  }
+
+  // One message for every way this can fail, so nothing is learned from which.
+  const wrong = async () => {
+    await recordAttempt(env, key);
+    return json({ error: 'That code is not right, or it has expired. Ask for a new one.' },
+                400, request, env);
+  };
+
+  const user = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+  if (!user) return await wrong();
+
+  const row = await env.DB.prepare(
+    `SELECT id, code_hash, expires_at, attempts FROM password_resets
+      WHERE user_id = ? ORDER BY id DESC LIMIT 1`
+  ).bind(user.id).first();
+  if (!row) return await wrong();
+
+  if (Date.parse(row.expires_at) < Date.now() || row.attempts >= RESET_MAX_ATTEMPTS){
+    await env.DB.prepare('DELETE FROM password_resets WHERE id = ?').bind(row.id).run();
+    return await wrong();
+  }
+
+  if (!timingSafeEqual(await sha256Hex(code), row.code_hash)){
+    await env.DB.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?')
+      .bind(row.id).run();
+    return await wrong();
+  }
+
+  const salt = randomHex(16);
+  const hash = await hashPassword(password, salt, PBKDF2_ITERATIONS);
+  await env.DB.prepare('UPDATE users SET pw_hash = ?, pw_salt = ?, iterations = ? WHERE id = ?')
+    .bind(hash, salt, PBKDF2_ITERATIONS, user.id).run();
+  await env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id).run();
+  // Every existing session goes. If someone else had the account open, a
+  // password reset is precisely when they should lose it.
+  await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
+  await clearAttempts(env, key);
+
+  const full = await env.DB.prepare('SELECT id, name, email, role FROM users WHERE id = ?')
+    .bind(user.id).first();
+  await audit(env, full, 'password.reset', full.id, null, 'Password reset with an emailed code');
+
+  const token = await createSession(env, user.id);
+  return json({ token, user: full }, 200, request, env);
+}
+
 async function handleLogout(request, env){
   const token = bearer(request);
   if (token){
@@ -1429,6 +1607,8 @@ export default {
       if (url.pathname === '/auth/register' && request.method === 'POST') return await handleRegister(request, env);
       if (url.pathname === '/auth/login'    && request.method === 'POST') return await handleLogin(request, env);
       if (url.pathname === '/auth/logout'   && request.method === 'POST') return await handleLogout(request, env);
+      if (url.pathname === '/auth/reset/request' && request.method === 'POST') return await handleResetRequest(request, env);
+      if (url.pathname === '/auth/reset/confirm' && request.method === 'POST') return await handleResetConfirm(request, env);
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
       if (url.pathname === '/track'         && request.method === 'POST') return await handleTrack(request, env);
       if (url.pathname === '/stats'         && request.method === 'GET')  return await handleStats(request, env);
