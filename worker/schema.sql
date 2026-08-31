@@ -153,3 +153,48 @@ ALTER TABLE time_entries ADD COLUMN in_distance_m INTEGER;
 ALTER TABLE time_entries ADD COLUMN in_accuracy_m INTEGER;
 ALTER TABLE time_entries ADD COLUMN out_distance_m INTEGER;
 ALTER TABLE time_entries ADD COLUMN out_accuracy_m INTEGER;
+
+-- ═══════════════════════════════════════════════════════════════════
+--  CLOVER: register sales, copied here so reports never wait on their API
+-- ═══════════════════════════════════════════════════════════════════
+
+-- Ids are Clover's own, so a re-sync updates a row instead of duplicating it.
+-- `day` is the Pacific calendar day the order was opened.
+CREATE TABLE IF NOT EXISTS sales_orders (
+  id           TEXT PRIMARY KEY,
+  day          TEXT NOT NULL,
+  created_ms   INTEGER NOT NULL,       -- Clover epoch millis
+  modified_ms  INTEGER,
+  state        TEXT,
+  total_cents  INTEGER,
+  synced_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_orders_day ON sales_orders(day);
+
+-- One row per line on a ticket. price_cents is the unit price; qty is 1 for
+-- ordinary items and a fraction for anything Clover sells by measure.
+CREATE TABLE IF NOT EXISTS sales_items (
+  id           TEXT PRIMARY KEY,
+  order_id     TEXT NOT NULL,
+  day          TEXT NOT NULL,
+  item_id      TEXT,                   -- Clover menu item, absent for hand-keyed lines
+  name         TEXT NOT NULL,
+  price_cents  INTEGER NOT NULL DEFAULT 0,
+  qty          REAL NOT NULL DEFAULT 1,
+  refunded     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_items_day ON sales_items(day);
+CREATE INDEX IF NOT EXISTS idx_sales_items_order ON sales_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_sales_items_name ON sales_items(name);
+
+-- The register's menu. Kept so the report can name bottles that sold nothing
+-- at all in a range - a table of sales alone can never show those.
+CREATE TABLE IF NOT EXISTS clover_items (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  price_cents  INTEGER,
+  hidden       INTEGER NOT NULL DEFAULT 0,
+  synced_at    TEXT NOT NULL
+);

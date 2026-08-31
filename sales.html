@@ -1,0 +1,259 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Sales &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="staff.css">
+<link rel="stylesheet" href="auth.css">
+<style>
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2.5rem;}
+.stat{padding:1.5rem 1.3rem;border:1px solid rgba(201,168,76,.18);background:rgba(255,255,255,.025);}
+.stat-label{font-size:.58rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.7rem;}
+.stat-value{font-family:'Cormorant Garamond',serif;font-size:2.4rem;font-weight:400;color:var(--gold-light);line-height:1;}
+.stat-sub{font-size:.66rem;color:var(--cream-dim);margin-top:.5rem;}
+.rank{color:var(--gold-dim);font-size:.7rem;width:2.2rem;}
+.bar{height:3px;background:var(--gold);opacity:.55;margin-top:.35rem;border-radius:2px;min-width:2px;}
+.note-box{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);padding:1rem 1.2rem;font-size:.73rem;color:var(--cream-dim);line-height:1.7;}
+.note-box strong{color:var(--gold);}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;}
+.chip{padding:.4rem .75rem;border:1px solid rgba(201,168,76,.22);background:rgba(0,0,0,.25);color:var(--cream-dim);font-size:.68rem;border-radius:2px;}
+#syncOut{display:none;white-space:pre-wrap;font-size:.72rem;line-height:1.6;color:var(--cream-dim);background:rgba(0,0,0,.25);border:1px solid rgba(201,168,76,.18);padding:1rem;margin-top:1rem;}
+@media(max-width:760px){ .stat-grid{grid-template-columns:1fr;} }
+</style>
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="dashboard.html" class="nav-back">&#8592; Dashboard</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="page-eyebrow">Owner</div>
+    <h1 class="page-title">Sales &amp; <em>Bottle Movement</em></h1>
+    <div class="page-meta" id="meta">Loading&hellip;</div>
+  </div>
+
+  <div id="state"></div>
+
+  <div id="body" style="display:none">
+    <div class="msg" id="msg"></div>
+
+    <div class="form-row">
+      <label class="field">From<input type="date" id="fromDate"></label>
+      <label class="field">To<input type="date" id="toDate"></label>
+      <button class="btn" onclick="load()">Show</button>
+      <button class="btn btn-ghost" onclick="preset(7)">Last 7 Days</button>
+      <button class="btn btn-ghost" onclick="preset(30)">Last 30 Days</button>
+      <button class="btn btn-ghost" onclick="preset(90)">Last 90 Days</button>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">Gross Sales</div>
+        <div class="stat-value" id="statGross">&mdash;</div>
+        <div class="stat-sub">Order totals as the register rang them</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Orders</div>
+        <div class="stat-value" id="statOrders">&mdash;</div>
+        <div class="stat-sub" id="subOrders"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Items Sold</div>
+        <div class="stat-value" id="statUnits">&mdash;</div>
+        <div class="stat-sub" id="subUnits"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title" id="tableTitle">Best Sellers</div>
+        <div class="section-note">
+          <button class="btn btn-ghost btn-sm" onclick="flip()" id="flipBtn">Show Slowest First</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th></th><th>Item</th>
+            <th class="num">Sold</th><th class="num">Revenue</th><th class="num">Tickets</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:1rem"><button class="btn btn-ghost btn-sm" onclick="showAll()" id="moreBtn" style="display:none">Show All</button></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Sold Nothing</div>
+        <div class="section-note">On the register&rsquo;s menu, but no sales in this range</div>
+      </div>
+      <div id="unsold"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Clover</div>
+        <div class="section-note">Sales are copied into the site &middot; nothing here writes back to the register</div>
+      </div>
+      <div class="form-row">
+        <button class="btn" onclick="sync(0, this)">Pull New Sales</button>
+        <button class="btn btn-ghost" onclick="sync(90, this)">Backfill 90 Days</button>
+        <button class="btn btn-ghost" onclick="sync(365, this)">Backfill A Year</button>
+      </div>
+      <pre id="syncOut"></pre>
+    </div>
+
+    <div class="note-box">
+      <strong>Where these numbers come from.</strong> Every order and line item on the register is copied
+      into the site&rsquo;s own database, so a report never waits on Clover and never changes anything there.
+      Days are Pacific, matching the lounge&rsquo;s day rather than UTC.
+      <br><br>
+      <strong>Pull New Sales</strong> fetches whatever has changed since the last pull &mdash; run it whenever
+      you want fresh figures. The backfill buttons are for the first run, or after a long gap. Pulling twice
+      cannot double-count: orders are stored under Clover&rsquo;s own ids, so a second pull overwrites rather
+      than adds.
+      <br><br>
+      <strong>Refunded and exchanged lines are left out</strong> of the item counts. Gross sales is the sum of
+      order totals before any tax or tip breakdown, so treat it as a trading figure, not an accounting one.
+      <br><br>
+      <strong>&ldquo;Sold Nothing&rdquo;</strong> lists items on the Clover menu that rang up zero in the range.
+      Hidden items are skipped. If a bottle is missing from that list and from the table above, it is not on
+      the register&rsquo;s menu at all.
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="staff.js"></script>
+<script>
+const TOP_N = 20;          // how many rows before "Show All"
+let data = null;           // last response
+let slowest = false;       // sort direction of the item table
+let expanded = false;
+
+function isoDay(d){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
+}
+
+function preset(days){
+  const to = new Date();
+  const from = new Date(Date.now() - (days - 1) * 86400000);
+  document.getElementById('fromDate').value = isoDay(from);
+  document.getElementById('toDate').value = isoDay(to);
+  load();
+}
+
+function flip(){
+  slowest = !slowest;
+  expanded = false;
+  document.getElementById('flipBtn').textContent = slowest ? 'Show Best Sellers' : 'Show Slowest First';
+  document.getElementById('tableTitle').textContent = slowest ? 'Slowest Movers' : 'Best Sellers';
+  renderItems();
+}
+
+function showAll(){ expanded = true; renderItems(); }
+
+function renderItems(){
+  const tb = document.getElementById('rows');
+  const all = (data.items || []).slice();
+  if (slowest) all.reverse();
+
+  if (!all.length){
+    tb.innerHTML = '<tr><td colspan="5" class="empty">No sales stored for this range yet. Pull from Clover below.</td></tr>';
+    document.getElementById('moreBtn').style.display = 'none';
+    return;
+  }
+
+  const shown = expanded ? all : all.slice(0, TOP_N);
+  // Bar width is always relative to the biggest seller, so flipping the sort
+  // does not make a slow item look busy.
+  const top = Math.max.apply(null, all.map(i => i.units)) || 1;
+
+  tb.innerHTML = shown.map((i, n) => {
+    const place = slowest ? all.length - n : n + 1;
+    return '<tr>' +
+      '<td class="rank">' + place + '</td>' +
+      '<td>' + esc(i.name) +
+        '<div class="bar" style="width:' + Math.max(2, (i.units / top) * 100) + '%"></div></td>' +
+      '<td class="num count">' + i.units + '</td>' +
+      '<td class="num">' + money(i.revenue) + '</td>' +
+      '<td class="num muted">' + i.orders + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const more = document.getElementById('moreBtn');
+  more.style.display = (!expanded && all.length > TOP_N) ? '' : 'none';
+  more.textContent = 'Show All ' + all.length;
+}
+
+function render(d){
+  data = d;
+  expanded = false;
+
+  const units = (d.items || []).reduce((t, i) => t + i.units, 0);
+  document.getElementById('statGross').textContent = money(d.grossSales);
+  document.getElementById('statOrders').textContent = d.orders;
+  document.getElementById('statUnits').textContent = Math.round(units * 100) / 100;
+  document.getElementById('subOrders').textContent = d.orders
+    ? 'averaging ' + money(d.grossSales / d.orders) + ' a ticket' : 'nothing stored for these days';
+  document.getElementById('subUnits').textContent = (d.items || []).length + ' different items';
+
+  renderItems();
+
+  const none = d.neverSold || [];
+  document.getElementById('unsold').innerHTML = none.length
+    ? '<div class="chips">' + none.map(i =>
+        '<span class="chip">' + esc(i.name) +
+        (i.price ? ' <span class="muted">' + money(i.price) + '</span>' : '') + '</span>').join('') + '</div>'
+    : '<div class="empty">Everything on the menu sold at least once' +
+      ((d.items || []).length ? '.' : ' — or the menu has not been pulled from Clover yet.') + '</div>';
+
+  document.getElementById('meta').textContent = d.from + ' to ' + d.to + ' · Pacific' +
+    (d.syncedAt ? ' · last pulled ' + fmtWhen(d.syncedAt) : ' · never pulled from Clover');
+}
+
+async function sync(days, btn){
+  const out = document.getElementById('syncOut');
+  out.style.display = '';
+  out.textContent = days ? 'Pulling ' + days + ' days from Clover… this can take a minute.'
+                         : 'Pulling anything new from Clover…';
+  const buttons = [...document.querySelectorAll('.form-row .btn')];
+  buttons.forEach(b => b.disabled = true);
+  try {
+    const d = await authApi('/clover/sync', days ? { days } : {});
+    if (d.ok){
+      const lines = [
+        d.ordersSynced + ' order' + (d.ordersSynced === 1 ? '' : 's') + ' stored, ' +
+          d.itemsSynced + ' line items',
+        d.menuItems != null ? d.menuItems + ' menu items refreshed' : 'Menu could not be read: ' + d.catalogError
+      ];
+      if (d.more) lines.push('There was more than one run could carry — press Pull New Sales again to continue.');
+      out.textContent = lines.join('\n');
+      await load();
+    } else {
+      out.textContent = 'Clover said no' + (d.status ? ' (HTTP ' + d.status + ')' : '') + ':\n' +
+                        d.error + (d.hint ? '\n\n' + d.hint : '');
+    }
+  } catch (err){
+    out.textContent = err.message;
+  }
+  buttons.forEach(b => b.disabled = false);
+}
+
+async function load(){
+  const from = document.getElementById('fromDate').value;
+  const to = document.getElementById('toDate').value;
+  const q = from && to ? ('?from=' + from + '&to=' + to) : '';
+  render(await authApi('/sales/items' + q));
+}
+
+staffBoot('owner', async () => {
+  if (!document.getElementById('fromDate').value) { preset(30); return; }
+  await load();
+});
+</script>

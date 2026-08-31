@@ -323,6 +323,14 @@ async function getSetting(env, key){
   return r ? r.value : null;
 }
 
+async function putSetting(env, key, value, userId){
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+       updated_by = excluded.updated_by, updated_at = excluded.updated_at`
+  ).bind(key, String(value), userId || null, new Date().toISOString()).run();
+}
+
 /** Metres between two points on the earth. */
 function metresBetween(lat1, lon1, lat2, lon2){
   const R = 6371000;
@@ -396,12 +404,7 @@ async function handleSetLocation(request, env){
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180){
     return json({ error: 'That location does not look right.' }, 400, request, env);
   }
-  const now = new Date().toISOString();
-  const put = async (k, v) => env.DB.prepare(
-    `INSERT INTO settings (key, value, updated_by, updated_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value,
-       updated_by = excluded.updated_by, updated_at = excluded.updated_at`
-  ).bind(k, String(v), got.user.id, now).run();
+  const put = (k, v) => putSetting(env, k, v, got.user.id);
 
   await put('lounge_lat', lat);
   await put('lounge_lng', lng);
@@ -658,7 +661,11 @@ async function handleEditEntry(request, env){
 async function cloverFetch(env, path, params){
   const base = env.CLOVER_BASE || 'https://api.clover.com';
   const url = new URL(base + '/v3/merchants/' + env.CLOVER_MERCHANT_ID + path);
-  for (const [k, v] of Object.entries(params || {})) url.searchParams.set(k, v);
+  for (const [k, v] of Object.entries(params || {})){
+    // Clover takes `filter` more than once, and ANDs the conditions together.
+    if (Array.isArray(v)) v.forEach(one => url.searchParams.append(k, one));
+    else url.searchParams.set(k, v);
+  }
 
   let res, text = '';
   try {
@@ -728,6 +735,234 @@ async function handleCloverTest(request, env){
     currency: merchant.data && merchant.data.currency,
     ordersReturned: sample.length,
     sample
+  }, 200, request, env);
+}
+
+/* ── Clover sync ── */
+
+/*
+ * Every D1 call spends one of the worker's subrequests, and the free plan
+ * allows fifty per invocation. So a page of orders is written as a single
+ * batch rather than a statement at a time, and a run stops after eight pages
+ * and reports that there is more - pressing sync again carries on.
+ */
+const CLOVER_PAGE = 100;        // orders per Clover request
+const CLOVER_MAX_PAGES = 8;     // 800 orders a run
+const CATALOG_PAGE = 500;       // menu items per Clover request
+const CATALOG_MAX_PAGES = 2;
+const MAX_BATCH = 800;          // statements before a batch is flushed
+
+/**
+ * Units sold on a line. Clover writes one row per unit for ordinary items and
+ * only sets unitQty (in thousandths) for things sold by weight or measure.
+ */
+function lineQty(li){
+  const q = Number(li.unitQty);
+  return Number.isFinite(q) && q > 0 ? q / 1000 : 1;
+}
+
+/**
+ * The statements that store one order and its lines. Line items are deleted
+ * and rewritten rather than merged, so a voided or refunded line on a
+ * re-synced order disappears instead of lingering as a phantom sale. A batch
+ * runs in order, so the delete always precedes the inserts that follow it.
+ */
+function orderStatements(env, o, syncedAt){
+  const created = Number(o.createdTime) || Number(o.modifiedTime) || Date.now();
+  const day = localDay(new Date(created));
+
+  const stmts = [
+    env.DB.prepare(
+      `INSERT INTO sales_orders (id, day, created_ms, modified_ms, state, total_cents, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET day = excluded.day, created_ms = excluded.created_ms,
+         modified_ms = excluded.modified_ms, state = excluded.state,
+         total_cents = excluded.total_cents, synced_at = excluded.synced_at`
+    ).bind(o.id, day, created, Number(o.modifiedTime) || created,
+           o.state || null, Number(o.total) || 0, syncedAt),
+    env.DB.prepare('DELETE FROM sales_items WHERE order_id = ?').bind(o.id)
+  ];
+
+  const lines = (o.lineItems && o.lineItems.elements) || [];
+  for (const li of lines){
+    stmts.push(env.DB.prepare(
+      `INSERT OR REPLACE INTO sales_items
+         (id, order_id, day, item_id, name, price_cents, qty, refunded)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(li.id, o.id, day, (li.item && li.item.id) || null,
+           (li.name || 'Unnamed').trim(), Number(li.price) || 0, lineQty(li),
+           (li.refunded || li.exchanged) ? 1 : 0));
+  }
+  return { stmts, lines: lines.length };
+}
+
+/** The menu as Clover holds it, so "sold nothing this month" can be answered. */
+async function syncCatalog(env){
+  const now = new Date().toISOString();
+  let offset = 0, saved = 0;
+  for (let page = 0; page < CATALOG_MAX_PAGES; page++){
+    const res = await cloverFetch(env, '/items', { limit: CATALOG_PAGE, offset });
+    if (!res.ok) return { ok: false, status: res.status, error: res.error, saved };
+    const batch = (res.data && res.data.elements) || [];
+    if (batch.length){
+      await env.DB.batch(batch.map(it => env.DB.prepare(
+        `INSERT INTO clover_items (id, name, price_cents, hidden, synced_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, price_cents = excluded.price_cents,
+           hidden = excluded.hidden, synced_at = excluded.synced_at`
+      ).bind(it.id, (it.name || 'Unnamed').trim(), Number(it.price) || 0,
+             it.hidden ? 1 : 0, now)));
+      saved += batch.length;
+    }
+    offset += batch.length;
+    if (batch.length < CATALOG_PAGE) break;
+  }
+  return { ok: true, saved };
+}
+
+/**
+ * Pulls orders changed since the last run into D1. Everything is keyed on the
+ * Clover order id, so running this twice costs time and nothing else.
+ */
+async function handleCloverSync(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  if (!env.CLOVER_TOKEN){
+    return json({ ok: false, error: 'No CLOVER_TOKEN secret is set on this worker.' }, 400, request, env);
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const now = Date.now();
+  let since;
+  if (Number(body.days) > 0){
+    since = now - Math.min(Number(body.days), 400) * 86400000;
+  } else {
+    const saved = Number(await getSetting(env, 'clover_synced_through'));
+    // Two hours of overlap, so an order edited moments after the last run is
+    // still picked up. Re-syncing an order is harmless.
+    since = Number.isFinite(saved) && saved > 0 ? saved - 2 * 3600000 : now - 30 * 86400000;
+  }
+
+  const syncedAt = new Date().toISOString();
+  let offset = 0, orders = 0, items = 0, maxModified = since, capped = false;
+  const states = {};
+  let pending = [];
+  const flush = async () => {
+    if (pending.length) await env.DB.batch(pending);
+    pending = [];
+  };
+
+  for (let page = 0; page < CLOVER_MAX_PAGES; page++){
+    const res = await cloverFetch(env, '/orders', {
+      filter: ['modifiedTime>=' + since, 'modifiedTime<=' + now],
+      expand: 'lineItems',
+      orderBy: 'modifiedTime ASC',
+      limit: CLOVER_PAGE,
+      offset
+    });
+    if (!res.ok){
+      return json({
+        ok: false, step: 'orders', status: res.status, error: res.error,
+        ordersSynced: orders,
+        hint: res.status === 403 ? 'The token needs read access to Orders.' : undefined
+      }, 200, request, env);
+    }
+
+    const batch = (res.data && res.data.elements) || [];
+    for (const o of batch){
+      const built = orderStatements(env, o, syncedAt);
+      pending.push(...built.stmts);
+      items += built.lines;
+      orders++;
+      states[o.state || 'none'] = (states[o.state || 'none'] || 0) + 1;
+      const m = Number(o.modifiedTime) || Number(o.createdTime) || 0;
+      if (m > maxModified) maxModified = m;
+      if (pending.length >= MAX_BATCH) await flush();
+    }
+    await flush();
+    offset += batch.length;
+    if (batch.length < CLOVER_PAGE) break;
+    capped = page === CLOVER_MAX_PAGES - 1;
+  }
+
+  // Only claim to be caught up if the last page was reached. Otherwise the
+  // cursor stops at the newest order stored, and the next run carries on.
+  await putSetting(env, 'clover_synced_through', capped ? maxModified : now, got.user.id);
+  await putSetting(env, 'clover_synced_at', new Date().toISOString(), got.user.id);
+
+  const catalog = await syncCatalog(env);
+  await audit(env, got.user, 'clover.sync', null, null,
+    `${orders} order${orders === 1 ? '' : 's'}, ${items} line items`);
+
+  return json({
+    ok: true,
+    ordersSynced: orders,
+    itemsSynced: items,
+    menuItems: catalog.ok ? catalog.saved : null,
+    catalogError: catalog.ok ? undefined : catalog.error,
+    orderStates: states,
+    since: new Date(since).toISOString(),
+    more: capped
+  }, 200, request, env);
+}
+
+/**
+ * What moved and what did not, over a range of Pacific calendar days.
+ * Refunded lines are excluded; anything on the Clover menu with no sales in
+ * the range comes back separately, because that is the real "slowest seller".
+ */
+async function handleSalesItems(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+
+  const url = new URL(request.url);
+  const from = (url.searchParams.get('from') || daysAgo(29)).slice(0, 10);
+  const to = (url.searchParams.get('to') || localDay(new Date())).slice(0, 10);
+
+  const sold = await env.DB.prepare(
+    `SELECT name,
+            SUM(qty)                AS units,
+            SUM(price_cents * qty)  AS revenue_cents,
+            COUNT(DISTINCT order_id) AS orders,
+            MAX(item_id)            AS item_id
+       FROM sales_items
+      WHERE day >= ? AND day <= ? AND refunded = 0
+      GROUP BY LOWER(name)
+      ORDER BY units DESC, revenue_cents DESC`
+  ).bind(from, to).all();
+
+  const totals = await env.DB.prepare(
+    `SELECT COUNT(*) AS orders, COALESCE(SUM(total_cents), 0) AS gross_cents
+       FROM sales_orders WHERE day >= ? AND day <= ?`
+  ).bind(from, to).first();
+
+  // Menu items that rang up nothing in the range. Matched on id where Clover
+  // gave us one, and on name otherwise, so hand-keyed sales still count.
+  const unsold = await env.DB.prepare(
+    `SELECT id, name, price_cents FROM clover_items
+      WHERE hidden = 0
+        AND id NOT IN (
+          SELECT item_id FROM sales_items
+           WHERE item_id IS NOT NULL AND day >= ? AND day <= ? AND refunded = 0)
+        AND LOWER(name) NOT IN (
+          SELECT LOWER(name) FROM sales_items
+           WHERE day >= ? AND day <= ? AND refunded = 0)
+      ORDER BY name COLLATE NOCASE`
+  ).bind(from, to, from, to).all();
+
+  return json({
+    ok: true,
+    from, to,
+    syncedAt: await getSetting(env, 'clover_synced_at'),
+    orders: totals?.orders || 0,
+    grossSales: money(totals?.gross_cents || 0),
+    items: (sold.results || []).map(r => ({
+      name: r.name,
+      units: Math.round((r.units || 0) * 100) / 100,
+      revenue: money(r.revenue_cents || 0),
+      orders: r.orders
+    })),
+    neverSold: (unsold.results || []).map(r => ({ name: r.name, price: money(r.price_cents) }))
   }, 200, request, env);
 }
 
@@ -1012,6 +1247,8 @@ export default {
       if (url.pathname === '/team/location' && request.method === 'POST') return await handleSetLocation(request, env);
       if (url.pathname === '/payroll'       && request.method === 'GET')  return await handlePayroll(request, env);
       if (url.pathname === '/clover/test'   && request.method === 'GET')  return await handleCloverTest(request, env);
+      if (url.pathname === '/clover/sync'   && request.method === 'POST') return await handleCloverSync(request, env);
+      if (url.pathname === '/sales/items'   && request.method === 'GET')  return await handleSalesItems(request, env);
     } catch (err){
       // Detail goes to the worker log, never to the client.
       console.error('auth error', url.pathname, err && err.stack || err);

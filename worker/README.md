@@ -66,8 +66,10 @@ wrangler d1 execute excalibur-accounts --remote \
 
 ## How accounts are secured
 
-- **Passwords** are hashed with PBKDF2-SHA256, 210,000 iterations, a unique
-  16-byte salt per user. Plaintext passwords are never stored or logged.
+- **Passwords** are hashed with PBKDF2-SHA256, 100,000 iterations, a unique
+  16-byte salt per user. Plaintext passwords are never stored or logged. The
+  count is stored per user, so it can be raised later without invalidating
+  anyone's password.
 - **Sessions** are 32 random bytes. Only the SHA-256 hash is stored, so a
   database dump yields no usable sessions. They expire after 30 days.
 - **Login throttling**: 8 failed attempts per email+IP in 15 minutes returns 429.
@@ -84,6 +86,39 @@ site, where cookies are awkward. The trade-off: any cross-site-scripting bug in
 the site could read the token. Routing this Worker on a path under
 `excaliburloungesd.com` would allow a `HttpOnly` cookie instead, which is
 stronger — worth doing if the account system grows.
+
+## Clover
+
+Sales come from the Clover REST API and are copied into D1, so a report never
+waits on Clover and nothing the site does can write back to the register.
+
+- `CLOVER_MERCHANT_ID` is in `wrangler.jsonc`. It is an identifier, not a
+  credential, and it pins reporting to the Clairemont Mesa lounge — the same
+  Clover account also holds Excalibur Lounge RB and Las Villas Cigars.
+- `CLOVER_TOKEN` is a **dashboard secret**. It must never appear in this repo,
+  in the browser, or in a chat window. Every Clover call is made by the worker.
+- The token only needs **read** on Merchant, Orders, Payments and Inventory.
+  Nothing here writes to Clover, so give it nothing else.
+
+If a token is ever exposed, revoke it in the Clover dashboard and issue a new
+one; adding a replacement secret does not disable the old token.
+
+Endpoints, all owner-only:
+
+| Route | Does |
+|---|---|
+| `GET /clover/test` | Names the merchant and shows three orders, to prove the token works |
+| `POST /clover/sync` | Pulls orders changed since the last run. `{"days":90}` backfills instead |
+| `GET /sales/items` | Ranked item movement and gross sales for a range of Pacific days |
+
+A sync run stops after 800 orders and answers `more: true`; run it again to
+continue. That cap exists because every D1 call spends one of the worker's
+fifty free-plan subrequests, so orders are written a page at a time in one
+batch each.
+
+Orders are stored under Clover's own ids, so re-syncing overwrites rather than
+duplicates. Line items are deleted and rewritten with their order, so a refund
+or a voided line does not linger as a phantom sale.
 
 ## Maintenance
 
