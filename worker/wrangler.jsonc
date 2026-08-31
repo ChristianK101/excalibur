@@ -9,7 +9,13 @@
   },
   "vars": {
     // Origins permitted to call this worker. Add http://localhost:8899 while testing.
-    "ALLOWED_ORIGINS": "https://excaliburloungesd.com,https://www.excaliburloungesd.com"
+    "ALLOWED_ORIGINS": "https://excaliburloungesd.com,https://www.excaliburloungesd.com",
+
+    // Clover merchant for the Clairemont Mesa lounge. This is an identifier,
+    // not a credential; the API token is a dashboard secret (CLOVER_TOKEN).
+    // The account also holds Excalibur Lounge RB and Las Villas Cigars, so
+    // this pins reporting to the one location.
+    "CLOVER_MERCHANT_ID": "0THXDWP2MC91Y"
     // OWNER_EMAIL is set as a secret, not here — see README.md
   },
   "d1_databases": [
