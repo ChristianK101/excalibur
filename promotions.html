@@ -1,0 +1,295 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Promotions &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="staff.css">
+<link rel="stylesheet" href="auth.css">
+<style>
+.compose{display:grid;grid-template-columns:1fr 380px;gap:2rem;align-items:start;}
+.field-block{margin-bottom:1.1rem;}
+.field-block label{display:block;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.45rem;}
+.field-block input,.field-block textarea{width:100%;padding:.7rem .8rem;background:rgba(0,0,0,.3);border:1px solid rgba(201,168,76,.25);color:var(--cream);font-family:'Montserrat',sans-serif;font-size:.82rem;border-radius:2px;}
+.field-block textarea{min-height:230px;resize:vertical;line-height:1.7;}
+.field-block input:focus,.field-block textarea:focus{outline:none;border-color:var(--gold);}
+.hint{font-size:.66rem;color:rgba(200,185,154,.6);margin-top:.35rem;line-height:1.6;}
+.preview{border:1px solid rgba(201,168,76,.2);background:#140c05;padding:1rem;position:sticky;top:1rem;}
+.preview-label{font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.7rem;}
+.mail{background:#1d1209;border:1px solid #4a3a1c;padding:1.4rem;font-family:Helvetica,Arial,sans-serif;}
+.mail-brand{font-size:1.3rem;color:#c9a84c;letter-spacing:.06em;}
+.mail-sub{font-size:.55rem;color:#8a7f6a;letter-spacing:.2em;text-transform:uppercase;margin-bottom:1.1rem;}
+.mail img{display:block;width:100%;height:auto;margin-bottom:1rem;}
+.mail p{font-size:.78rem;line-height:1.7;color:#e8dfcc;margin:0 0 .8rem;}
+.mail-btn{display:inline-block;background:#c9a84c;color:#1d1209;padding:.6rem 1.2rem;font-size:.7rem;font-weight:600;margin:.6rem 0;}
+.mail-foot{border-top:1px solid #3a2d16;margin-top:1.2rem;padding-top:.8rem;font-size:.58rem;line-height:1.7;color:#8a7f6a;}
+.mail-foot a{color:#c9a84c;}
+.count{font-family:'Cormorant Garamond',serif;font-size:2.2rem;color:var(--gold-light);line-height:1;}
+.warn{background:rgba(220,80,80,.08);border:1px solid rgba(220,80,80,.35);padding:.8rem 1rem;font-size:.75rem;color:#f0a0a0;margin-bottom:1.2rem;}
+.bar{height:5px;background:rgba(255,255,255,.07);margin-top:.8rem;border-radius:3px;overflow:hidden;}
+.bar span{display:block;height:100%;background:var(--gold);width:0;transition:width .3s;}
+.note-box{background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.2);padding:1rem 1.2rem;font-size:.73rem;color:var(--cream-dim);line-height:1.7;}
+.note-box strong{color:var(--gold);}
+@media(max-width:900px){ .compose{grid-template-columns:1fr;} .preview{position:static;} }
+</style>
+
+<nav>
+  <a href="index.html" class="nav-logo">Excalibur</a>
+  <a href="dashboard.html" class="nav-back">&#8592; Dashboard</a>
+  <div class="auth-nav"></div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="page-eyebrow">Owner</div>
+    <h1 class="page-title">Email <em>Promotions</em></h1>
+    <div class="page-meta" id="meta">Loading&hellip;</div>
+  </div>
+
+  <div id="state"></div>
+
+  <div id="body" style="display:none">
+    <div class="msg" id="msg"></div>
+    <div id="warnings"></div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Write It</div>
+        <div class="section-note" id="audience"></div>
+      </div>
+
+      <div class="compose">
+        <div>
+          <div class="field-block">
+            <label for="subject">Subject</label>
+            <input type="text" id="subject" maxlength="200" oninput="draw()"
+                   placeholder="Scotch tasting this Thursday">
+            <div class="hint">The first thing anyone sees. Say what it is, plainly &mdash; no ALL CAPS or exclamation marks, which is what spam filters look for.</div>
+          </div>
+
+          <div class="field-block">
+            <label for="bodyText">Message</label>
+            <textarea id="bodyText" maxlength="10000" oninput="draw()"
+                      placeholder="Join us Thursday evening for a guided tasting…"></textarea>
+            <div class="hint">Leave a blank line between paragraphs.</div>
+          </div>
+
+          <div class="field-block">
+            <label for="imageUrl">Image Address (optional)</label>
+            <input type="text" id="imageUrl" oninput="draw()" placeholder="https://excaliburloungesd.com/opusx25-flyer.jpg">
+            <div class="hint">Must be an <strong>https://</strong> address to a picture already online. Anything already on the site works &mdash; the OpusX flyer is <em>https://excaliburloungesd.com/opusx25-flyer.jpg</em>.</div>
+          </div>
+
+          <div class="field-block">
+            <label for="linkUrl">Button Link (optional)</label>
+            <input type="text" id="linkUrl" oninput="draw()" placeholder="https://excaliburloungesd.com/menu.html">
+          </div>
+          <div class="field-block">
+            <label for="linkLabel">Button Text</label>
+            <input type="text" id="linkLabel" maxlength="60" oninput="draw()" placeholder="See The Menu">
+          </div>
+
+          <div class="form-row">
+            <button class="btn btn-ghost" onclick="save(this)">Save Draft</button>
+            <button class="btn btn-ghost" onclick="test(this)">Send Me A Test</button>
+            <button class="btn" onclick="send(this)" id="sendBtn">Send To Everyone</button>
+          </div>
+          <div class="bar" id="progressBar" style="display:none"><span id="progressFill"></span></div>
+          <div class="hint" id="progressText"></div>
+        </div>
+
+        <div class="preview">
+          <div class="preview-label">Preview</div>
+          <div class="mail" id="mail"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Sender Details</div>
+        <div class="section-note">Required by law in every marketing email</div>
+      </div>
+      <div class="form-row">
+        <label class="field" style="flex:1;min-width:280px">Lounge postal address
+          <input type="text" id="address" maxlength="200" placeholder="1234 Clairemont Mesa Blvd, San Diego, CA 92111">
+        </label>
+        <button class="btn" onclick="saveSettings(this)">Save</button>
+      </div>
+      <div class="hint">Appears in the footer of every promotion. US law (CAN-SPAM) requires a real postal address, and sending without one risks penalties per email.</div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Sent</div>
+        <div class="section-note">Newest first</div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Subject</th><th>When</th><th class="num">Sent</th><th class="num">Failed</th><th>Status</th></tr></thead>
+          <tbody id="historyRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <strong>Who gets these.</strong> Only accounts that ticked the promotions box when signing up, or
+      turned it on afterwards. Nobody else, ever &mdash; staff accounts included unless they opted in
+      themselves.
+      <br><br>
+      <strong>Every email carries an unsubscribe link</strong> and your postal address. Both are legally
+      required, so neither can be switched off. An unsubscribe takes effect immediately and that person is
+      excluded from every future send.
+      <br><br>
+      <strong>Sending happens in batches</strong> of 30 with a progress bar. If you close the page halfway,
+      nothing is lost and nobody is emailed twice &mdash; press Send again and it picks up where it stopped.
+      <br><br>
+      <strong>Send yourself a test first.</strong> It is the only way to see how it actually lands, and a
+      sent email cannot be recalled.
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="staff.js"></script>
+<script>
+let campaignId = null;
+let settings = { address: null, subscribers: 0, emailReady: false };
+
+function val(id){ return document.getElementById(id).value.trim(); }
+
+/** The preview is the same shape as the email, so what you see is what sends. */
+function draw(){
+  const body = val('bodyText');
+  const paras = body
+    ? body.split(/\n{2,}/).map(p => '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>').join('')
+    : '<p style="opacity:.4">Your message appears here…</p>';
+  const img = /^https:\/\//i.test(val('imageUrl'))
+    ? '<img src="' + esc(val('imageUrl')) + '" alt="">' : '';
+  const btn = /^https:\/\//i.test(val('linkUrl'))
+    ? '<div><span class="mail-btn">' + esc(val('linkLabel') || 'View Details') + '</span></div>' : '';
+
+  document.getElementById('mail').innerHTML =
+    '<div class="mail-brand">Excalibur</div>' +
+    '<div class="mail-sub">Cigar &amp; Scotch Lounge</div>' +
+    img + paras + btn +
+    '<div class="mail-foot">' + esc(settings.address || '[set your postal address below]') + '<br>' +
+    'You are receiving this because you asked for offers from Excalibur when you created your account.<br>' +
+    '<a href="#" onclick="return false">Unsubscribe</a></div>';
+}
+
+function payload(){
+  return {
+    id: campaignId, subject: val('subject'), body: val('bodyText'),
+    imageUrl: val('imageUrl') || null, linkUrl: val('linkUrl') || null,
+    linkLabel: val('linkLabel') || null
+  };
+}
+
+async function save(btn){
+  btn.disabled = true;
+  try {
+    const d = await authApi('/marketing/campaign', payload());
+    campaignId = d.id;
+    flash('Draft saved.', 'ok');
+    await history();
+  } catch (err){ flash(err.message, 'err'); }
+  btn.disabled = false;
+}
+
+async function test(btn){
+  btn.disabled = true;
+  try {
+    const d = await authApi('/marketing/campaign', payload());
+    campaignId = d.id;
+    const t = await authApi('/marketing/test', { id: campaignId });
+    flash('Test sent to ' + t.to + '.', 'ok');
+  } catch (err){ flash(err.message, 'err'); }
+  btn.disabled = false;
+}
+
+async function send(btn){
+  if (!settings.address){ flash('Set the lounge’s postal address first.', 'err'); return; }
+  if (!settings.subscribers){ flash('Nobody has opted in yet.', 'err'); return; }
+  if (!confirm('Send "' + val('subject') + '" to ' + settings.subscribers +
+               ' subscriber' + (settings.subscribers === 1 ? '' : 's') + '?\n\nThis cannot be undone.')) return;
+
+  btn.disabled = true;
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressText');
+  bar.style.display = '';
+
+  try {
+    const saved = await authApi('/marketing/campaign', payload());
+    campaignId = saved.id;
+
+    // One chunk per call until the worker says it is finished. A closed tab
+    // costs nothing: the next run resumes from whoever has not been sent to.
+    for (;;){
+      const d = await authApi('/marketing/send', { id: campaignId });
+      const done = d.done ? d.total : (d.progress || 0);
+      fill.style.width = (d.total ? (done / d.total) * 100 : 100) + '%';
+      label.textContent = d.done
+        ? 'Finished — ' + d.sent + ' sent' + (d.failed ? ', ' + d.failed + ' failed' : '') + '.'
+        : 'Sending… ' + done + ' of ' + d.total;
+      if (d.done){
+        flash('Sent to ' + d.sent + ' subscriber' + (d.sent === 1 ? '' : 's') + '.', 'ok');
+        campaignId = null;
+        break;
+      }
+    }
+    await history();
+  } catch (err){
+    flash(err.message, 'err');
+    label.textContent = 'Stopped. Press Send To Everyone again to carry on from where it stopped.';
+  }
+  btn.disabled = false;
+}
+
+async function saveSettings(btn){
+  btn.disabled = true;
+  try {
+    await authApi('/marketing/settings', { address: val('address') });
+    flash('Saved.', 'ok');
+    await load();
+  } catch (err){ flash(err.message, 'err'); }
+  btn.disabled = false;
+}
+
+async function history(){
+  const d = await authApi('/marketing/campaigns');
+  const tb = document.getElementById('historyRows');
+  const list = d.campaigns || [];
+  tb.innerHTML = list.length ? list.map(c => '<tr>' +
+    '<td>' + esc(c.subject) + '</td>' +
+    '<td class="muted">' + fmtWhen(c.finished_at || c.created_at) + '</td>' +
+    '<td class="num count">' + c.sent + '</td>' +
+    '<td class="num">' + (c.failed ? '<span class="pill pill-flag">' + c.failed + '</span>' : '—') + '</td>' +
+    '<td><span class="pill pill-' + (c.status === 'sent' ? 'on' : 'customer') + '">' + esc(c.status) + '</span></td>' +
+  '</tr>').join('') : '<tr><td colspan="5" class="empty">Nothing sent yet.</td></tr>';
+}
+
+async function load(){
+  settings = await authApi('/marketing/settings');
+  document.getElementById('address').value = settings.address || '';
+  document.getElementById('audience').innerHTML =
+    '<span class="count">' + settings.subscribers + '</span> subscriber' +
+    (settings.subscribers === 1 ? '' : 's');
+  document.getElementById('meta').textContent =
+    settings.subscribers + ' opted in · sending as ' + (settings.from || 'not set');
+
+  const warn = [];
+  if (!settings.emailReady) warn.push('Email sending is not configured on the worker — RESEND_API_KEY is missing.');
+  if (!settings.address) warn.push('Set the lounge’s postal address below. Marketing email cannot go out without one.');
+  if (!settings.subscribers) warn.push('Nobody has opted in yet. The box appears on the sign-up form.');
+  document.getElementById('warnings').innerHTML =
+    warn.map(w => '<div class="warn">' + esc(w) + '</div>').join('');
+
+  draw();
+  await history();
+}
+
+staffBoot('owner', load);
+</script>

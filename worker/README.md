@@ -107,6 +107,29 @@ How it is kept safe:
   loses it at exactly the moment they should.
 - The reset is written to `audit_log`.
 
+## Promotional email
+
+Same Resend key as password resets. `/marketing/*` is owner-only; the
+Promotions page off the dashboard writes and sends campaigns.
+
+- **Only people who ticked the box receive anything.** The wording they agreed
+  to is stored with the consent, because "they ticked a box" is worth little
+  if nobody can say what the box said.
+- **The postal address is a setting, and sending is refused until it is set** —
+  CAN-SPAM requires a real one in every marketing email, so it is not left to
+  whoever writes the campaign to remember.
+- **Every email carries an unsubscribe link** plus `List-Unsubscribe` headers
+  for the one-click control Gmail and Apple Mail show. `/unsubscribe` needs no
+  sign-in: a link that asks for a password is not an unsubscribe link.
+- **Sends run in batches of 30**, one per request, recorded per recipient in
+  `campaign_sends`. An interrupted send resumes from whoever has not been sent
+  to rather than starting again, so nobody is emailed twice.
+- Image and button addresses must be `https://`, checked server-side, so a
+  campaign cannot carry a `javascript:` URL into someone's inbox.
+
+Resend's free tier is 3,000 emails a month, 100 a day. A send that exceeds it
+fails per recipient and is recorded as failed, not lost.
+
 ### Known trade-off
 
 The session token is kept in `localStorage` and sent as a Bearer header. This is
@@ -167,8 +190,9 @@ on a 400, and remembers the one that worked in `settings.clover_expand`.
 ### Tests
 
 ```bash
-node worker/test/clover.test.mjs    # Clover sync and the sales report
-node worker/test/reset.test.mjs     # emailed password resets
+node worker/test/clover.test.mjs     # Clover sync and the sales report
+node worker/test/reset.test.mjs      # emailed password resets
+node worker/test/marketing.test.mjs  # promotional email
 ```
 
 No dependencies and no network — `node:sqlite` stands in for D1 and `fetch` is

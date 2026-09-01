@@ -1,0 +1,59 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Unsubscribe &mdash; Excalibur Cigar &amp; Scotch Lounge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--brown-dark:#140c05;--brown-mid:#1d1209;--gold:#c9a84c;--gold-light:#e0c470;--gold-dim:#8a7233;--cream:#e8dfcc;--cream-dim:#b3a68c;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--brown-dark);color:var(--cream);font-family:'Montserrat',sans-serif;
+     min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem 1.2rem;}
+.card{max-width:460px;width:100%;background:var(--brown-mid);border:1px solid rgba(201,168,76,.3);
+      padding:2.8rem 2rem;text-align:center;}
+.brand{font-family:'Cormorant Garamond',serif;font-size:1.7rem;color:var(--gold);letter-spacing:.05em;}
+.brand-sub{font-size:.55rem;letter-spacing:.24em;text-transform:uppercase;color:var(--gold-dim);
+           margin-top:.3rem;margin-bottom:2rem;}
+h1{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;margin-bottom:.8rem;}
+p{font-size:.85rem;line-height:1.7;color:var(--cream-dim);}
+.back{display:inline-block;margin-top:1.8rem;font-size:.62rem;letter-spacing:.18em;
+      text-transform:uppercase;color:var(--gold);text-decoration:none;}
+.back:hover{color:var(--gold-light);}
+</style>
+
+<div class="card">
+  <div class="brand">Excalibur</div>
+  <div class="brand-sub">Cigar &amp; Scotch Lounge</div>
+  <h1 id="title">One moment&hellip;</h1>
+  <p id="detail">Taking you off the list.</p>
+  <a class="back" href="index.html">Return to the site</a>
+</div>
+
+<script src="auth.js"></script>
+<script>
+/* Deliberately needs no sign-in. An unsubscribe link that asks for a password
+   is not an unsubscribe link. */
+(async () => {
+  const title = document.getElementById('title');
+  const detail = document.getElementById('detail');
+  const token = new URLSearchParams(location.search).get('t');
+
+  if (!token){
+    title.textContent = 'Link not recognised';
+    detail.textContent = 'Use the unsubscribe link at the bottom of one of our emails, or reply to any of them and we will take you off by hand.';
+    return;
+  }
+
+  try {
+    const d = await authApi('/unsubscribe?t=' + encodeURIComponent(token));
+    title.textContent = d.already ? 'You are already unsubscribed' : 'You are unsubscribed';
+    detail.textContent = d.already
+      ? 'No further promotional emails will be sent to you.'
+      : 'You will not receive any more promotional emails from us. Your account is untouched — this only stops the offers.';
+  } catch (err){
+    title.textContent = 'Something went wrong';
+    detail.textContent = 'We could not process that just now. Please try the link again, or reply to any of our emails and we will remove you by hand.';
+  }
+})();
+</script>

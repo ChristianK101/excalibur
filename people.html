@@ -29,11 +29,20 @@
     <div class="section">
       <div class="section-head">
         <div class="section-title">Accounts</div>
-        <div class="section-note">Everyone who has signed up &middot; new accounts start as customers</div>
+        <div class="section-note" id="accountsNote">Everyone who has signed up &middot; new accounts start as customers</div>
+      </div>
+      <div class="form-row">
+        <label class="field" style="flex:1;min-width:200px">Search
+          <input type="text" id="search" placeholder="Name or email" oninput="renderPeople()">
+        </label>
+        <button class="btn btn-ghost" onclick="setFilter('all', this)" id="fAll">Everyone</button>
+        <button class="btn btn-ghost" onclick="setFilter('subs', this)" id="fSubs">Promotions Only</button>
+        <button class="btn btn-ghost" onclick="setFilter('staff', this)" id="fStaff">Staff</button>
+        <button class="btn btn-ghost" onclick="copyEmails(this)">Copy Addresses</button>
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Role</th><th>Change Role</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Role</th><th>Promotions</th><th>Change Role</th></tr></thead>
           <tbody id="peopleRows"></tbody>
         </table>
       </div>
@@ -70,10 +79,40 @@
 <script src="staff.js"></script>
 <script>
 const ROLES = ['customer', 'employee', 'manager', 'owner'];
+const STAFF = ['employee', 'manager', 'owner'];
+let allPeople = [];
+let filter = 'all';
 
-function renderPeople(people){
+function setFilter(which, btn){
+  filter = which;
+  ['fAll', 'fSubs', 'fStaff'].forEach(id => document.getElementById(id).classList.add('btn-ghost'));
+  btn.classList.remove('btn-ghost');
+  renderPeople();
+}
+
+/** What the table is showing right now - the search and the filter together. */
+function visiblePeople(){
+  const q = (document.getElementById('search').value || '').trim().toLowerCase();
+  return allPeople.filter(p => {
+    if (filter === 'subs' && !p.marketing) return false;
+    if (filter === 'staff' && !STAFF.includes(p.role)) return false;
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+  });
+}
+
+function renderPeople(){
+  const people = visiblePeople();
+  const subs = allPeople.filter(p => p.marketing).length;
+  document.getElementById('accountsNote').innerHTML =
+    people.length + ' shown &middot; ' + allPeople.length + ' account' +
+    (allPeople.length === 1 ? '' : 's') + ' &middot; ' + subs + ' opted into promotions';
+
   const tb = document.getElementById('peopleRows');
-  if (!people.length){ tb.innerHTML = '<tr><td colspan="5" class="empty">No accounts yet.</td></tr>'; return; }
+  if (!people.length){
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Nobody matches that.</td></tr>';
+    return;
+  }
   tb.innerHTML = people.map(p => {
     const isMe = authUser && p.id === authUser.id;
     const options = ROLES.map(r =>
@@ -81,14 +120,37 @@ function renderPeople(people){
     const control = isMe
       ? '<span class="muted">that&rsquo;s you</span>'
       : `<select onchange="setRole(${p.id}, this.value, this)">${options}</select>`;
+    const promo = p.marketing
+      ? '<span class="pill pill-on">yes</span>'
+      : '<span class="muted">&mdash;</span>';
     return '<tr>' +
       '<td>' + esc(p.name) + '</td>' +
       '<td class="muted">' + esc(p.email) + '</td>' +
       '<td class="muted">' + fmtDay(p.createdAt) + '</td>' +
       '<td><span class="pill pill-' + esc(p.role) + '">' + esc(p.role) + '</span></td>' +
+      '<td>' + promo + '</td>' +
       '<td>' + control + '</td>' +
     '</tr>';
   }).join('');
+}
+
+/** For pasting elsewhere. Sending from the site is on the Promotions page. */
+async function copyEmails(btn){
+  const list = visiblePeople().map(p => p.email).join(', ');
+  if (!list){ flash('Nothing to copy.', 'err'); return; }
+  try {
+    await navigator.clipboard.writeText(list);
+    flash(visiblePeople().length + ' address' + (visiblePeople().length === 1 ? '' : 'es') + ' copied.', 'ok');
+  } catch (e){
+    // Safari refuses the clipboard outside a direct gesture often enough that
+    // a selectable box is a better answer than an error.
+    const box = document.createElement('textarea');
+    box.value = list;
+    box.style.cssText = 'width:100%;height:6rem;margin-top:.8rem;background:rgba(0,0,0,.3);color:var(--cream);border:1px solid rgba(201,168,76,.3);padding:.6rem;font-size:.7rem';
+    btn.parentNode.appendChild(box);
+    box.select();
+    flash('Select and copy from the box below.', 'ok');
+  }
 }
 
 function renderAudit(log){
@@ -144,10 +206,13 @@ async function testClover(btn){
 
 async function load(){
   const [people, audit] = await Promise.all([authApi('/people'), authApi('/audit')]);
-  renderPeople(people.people);
+  allPeople = people.people;
+  renderPeople();
   renderAudit(audit.log);
+  const subs = allPeople.filter(p => p.marketing).length;
   document.getElementById('meta').textContent =
-    people.people.length + ' account' + (people.people.length === 1 ? '' : 's') + ' · times shown Pacific';
+    allPeople.length + ' account' + (allPeople.length === 1 ? '' : 's') +
+    ' · ' + subs + ' opted into promotions · times shown Pacific';
 }
 
 staffBoot('owner', load);

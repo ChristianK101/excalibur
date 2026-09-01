@@ -86,6 +86,13 @@ function authEsc(s){
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+/* The exact wording someone agrees to. Sent with the signup and stored
+   alongside the consent, so there is a record of what was actually offered.
+   Change it here and new signups record the new wording. */
+const AUTH_PROMO_TEXT =
+  'Email me news and offers from Excalibur. Optional, and you can unsubscribe ' +
+  'from any email.';
+
 /* ── modal ── */
 function authBuildModal(){
   if (document.getElementById('authOverlay')) return;
@@ -122,6 +129,10 @@ function authBuildModal(){
           '<input type="checkbox" id="authAge">' +
           '<span>I confirm I am 21 years of age or older.</span>' +
         '</label>' +
+        '<label class="auth-check" id="authPromoCheck">' +
+          '<input type="checkbox" id="authPromo">' +
+          '<span>' + AUTH_PROMO_TEXT + '</span>' +
+        '</label>' +
         '<button type="submit" class="auth-submit" id="authSubmit">Create Account</button>' +
       '</form>' +
       '<div class="auth-switch" id="authSwitch"></div>' +
@@ -138,7 +149,7 @@ let authMode = 'signup';
 const AUTH_SCREENS = {
   signup: {
     title: 'Create Account', sub: 'Join the Excalibur roster.',
-    fields: ['name', 'email', 'password', 'age'], submit: 'Create Account',
+    fields: ['name', 'email', 'password', 'age', 'promo'], submit: 'Create Account',
     passwordLabel: 'Password', focus: 'authName'
   },
   signin: {
@@ -169,6 +180,7 @@ function authOpen(mode){
   document.getElementById('authCodeField').style.display = has('code') ? '' : 'none';
   document.getElementById('authPasswordField').style.display = has('password') ? '' : 'none';
   document.getElementById('authAgeCheck').style.display = has('age') ? '' : 'none';
+  document.getElementById('authPromoCheck').style.display = has('promo') ? '' : 'none';
   document.getElementById('authName').required = has('name');
   document.getElementById('authPassword').required = has('password');
   // Sign-in accepts whatever was set before the minimum existed; the two
@@ -264,7 +276,11 @@ async function authSubmit(e){
                  'Password changed. You are signed in.');
       return;
     }
-    const payload = mode === 'signup' ? { name, email, password } : { email, password };
+    const payload = mode === 'signup'
+      ? { name, email, password,
+          marketingOptIn: document.getElementById('authPromo').checked,
+          marketingOptInText: AUTH_PROMO_TEXT }
+      : { email, password };
     authAccept(await authApi(mode === 'signup' ? '/auth/register' : '/auth/login', payload),
                mode === 'signup' ? 'Account created. Welcome to Excalibur.' : 'Signed in.');
   } catch (err){

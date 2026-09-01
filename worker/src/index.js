@@ -289,14 +289,17 @@ async function handlePeople(request, env){
   const got = await requireRole(request, env, 'owner');
   if (got.error) return got.error;
   const r = await env.DB.prepare(
-    `SELECT id, name, email, role, hourly_rate_cents, created_at FROM users ORDER BY
+    `SELECT id, name, email, role, hourly_rate_cents, created_at,
+            marketing_opt_in, opt_in_at
+       FROM users ORDER BY
        CASE role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'employee' THEN 2 ELSE 3 END,
        name COLLATE NOCASE`
   ).all();
   return json({
     people: (r.results || []).map(u => ({
       id: u.id, name: u.name, email: u.email, role: u.role,
-      hourlyRate: money(u.hourly_rate_cents), createdAt: u.created_at
+      hourlyRate: money(u.hourly_rate_cents), createdAt: u.created_at,
+      marketing: !!u.marketing_opt_in, optInAt: u.opt_in_at
     }))
   }, 200, request, env);
 }
@@ -1337,10 +1340,17 @@ async function handleRegister(request, env){
   const role = owner && email === owner ? 'owner' : 'customer';
   const now = new Date().toISOString();
 
+  // Opting in is off unless the box was actually ticked, and the wording shown
+  // at the time is kept with it.
+  const optIn = body.marketingOptIn === true;
+  const optInText = optIn ? String(body.marketingOptInText || '').slice(0, 300) : null;
+
   const res = await env.DB.prepare(
-    `INSERT INTO users (name, email, pw_hash, pw_salt, iterations, role, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).bind(name, email, hash, salt, PBKDF2_ITERATIONS, role, now).run();
+    `INSERT INTO users (name, email, pw_hash, pw_salt, iterations, role, created_at,
+                        marketing_opt_in, opt_in_at, opt_in_text, unsub_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(name, email, hash, salt, PBKDF2_ITERATIONS, role, now,
+         optIn ? 1 : 0, optIn ? now : null, optInText, randomHex(16)).run();
 
   const userId = res.meta.last_row_id;
   const token = await createSession(env, userId);
@@ -1399,8 +1409,10 @@ function resetCode(){
 }
 
 /** Sends through Resend. The API key is a Worker secret and never reaches a browser. */
-async function sendEmail(env, to, subject, text, html){
-  const from = env.RESET_FROM || 'Excalibur Lounge <no-reply@excaliburloungesd.com>';
+async function sendEmail(env, to, subject, text, html, headers, fromOverride){
+  const from = fromOverride || env.RESET_FROM || 'Excalibur Lounge <no-reply@excaliburloungesd.com>';
+  const payload = { from, to: [to], subject, text, html };
+  if (headers) payload.headers = headers;
   let res, body = '';
   try {
     res = await fetch('https://api.resend.com/emails', {
@@ -1409,7 +1421,7 @@ async function sendEmail(env, to, subject, text, html){
         Authorization: 'Bearer ' + env.RESEND_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ from, to: [to], subject, text, html })
+      body: JSON.stringify(payload)
     });
     body = await res.text();
   } catch (err){
@@ -1429,8 +1441,6 @@ function resetEmailText(name, code){
 }
 
 function resetEmailHtml(name, code){
-  const esc = s => String(s).replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   return `<div style="font-family:Helvetica,Arial,sans-serif;background:#140c05;padding:32px;color:#e8dfcc">
   <div style="max-width:440px;margin:0 auto;background:#1d1209;border:1px solid #4a3a1c;padding:32px">
     <div style="font-size:22px;color:#c9a84c;letter-spacing:.05em">Excalibur</div>
@@ -1556,6 +1566,325 @@ async function handleResetConfirm(request, env){
   return json({ token, user: full }, 200, request, env);
 }
 
+/* ── marketing email ── */
+
+// Recipients per call. Every send spends a subrequest, and the free plan
+// allows fifty an invocation, so this leaves room for the database writes.
+const SEND_CHUNK = 30;
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Only http(s), and nothing that could smuggle script into the mail. */
+function safeUrl(u){
+  const s = String(u || '').trim();
+  if (!s) return null;
+  if (!/^https:\/\/[^\s"'<>]+$/i.test(s)) return null;
+  return s;
+}
+
+function unsubUrl(env, token){
+  const site = (env.SITE_URL || 'https://excaliburloungesd.com').replace(/\/$/, '');
+  return site + '/unsubscribe.html?t=' + encodeURIComponent(token);
+}
+
+/**
+ * The mail itself. The unsubscribe link and a real postal address are in
+ * every one of these because US law requires both, so neither is optional
+ * and neither is left to whoever writes the campaign to remember.
+ */
+function campaignHtml(c, env, unsub, address){
+  const paras = String(c.body).split(/\n{2,}/).map(p =>
+    '<p style="font-size:15px;line-height:1.7;color:#e8dfcc;margin:0 0 16px">' +
+    esc(p).replace(/\n/g, '<br>') + '</p>').join('');
+  const img = safeUrl(c.image_url)
+    ? `<img src="${esc(safeUrl(c.image_url))}" alt="" style="display:block;width:100%;max-width:520px;height:auto;margin:0 0 22px">`
+    : '';
+  const link = safeUrl(c.link_url)
+    ? `<div style="margin:26px 0"><a href="${esc(safeUrl(c.link_url))}"
+         style="display:inline-block;background:#c9a84c;color:#1d1209;text-decoration:none;
+                padding:13px 26px;font-weight:600;font-size:14px;letter-spacing:.08em">
+         ${esc(c.link_label || 'View Details')}</a></div>`
+    : '';
+
+  return `<div style="font-family:Helvetica,Arial,sans-serif;background:#140c05;padding:28px 16px">
+  <div style="max-width:560px;margin:0 auto;background:#1d1209;border:1px solid #4a3a1c;padding:30px">
+    <div style="font-size:24px;color:#c9a84c;letter-spacing:.06em;margin-bottom:6px">Excalibur</div>
+    <div style="font-size:11px;color:#8a7f6a;letter-spacing:.2em;text-transform:uppercase;
+                margin-bottom:24px">Cigar &amp; Scotch Lounge</div>
+    ${img}${paras}${link}
+    <div style="border-top:1px solid #3a2d16;margin-top:28px;padding-top:16px;
+                font-size:11px;line-height:1.7;color:#8a7f6a">
+      ${esc(address)}<br>
+      You are receiving this because you asked for offers from Excalibur when you
+      created your account.<br>
+      <a href="${esc(unsub)}" style="color:#c9a84c">Unsubscribe</a>
+    </div>
+  </div>
+</div>`;
+}
+
+function campaignText(c, unsub, address){
+  return String(c.body) +
+    (safeUrl(c.link_url) ? '\n\n' + safeUrl(c.link_url) : '') +
+    '\n\n—\n' + address +
+    '\nYou are receiving this because you asked for offers from Excalibur.' +
+    '\nUnsubscribe: ' + unsub;
+}
+
+/** Owner-set details a campaign cannot legally go out without. */
+async function marketingSettings(env){
+  return {
+    address: await getSetting(env, 'marketing_address'),
+    from: await getSetting(env, 'marketing_from') || env.RESET_FROM || null
+  };
+}
+
+async function handleMarketingSettings(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+
+  if (request.method === 'GET'){
+    const s = await marketingSettings(env);
+    const subs = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM users WHERE marketing_opt_in = 1').first();
+    return json({ ...s, subscribers: subs?.n || 0,
+                  emailReady: !!env.RESEND_API_KEY }, 200, request, env);
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const address = String(body.address || '').trim().slice(0, 200);
+  if (address.length < 10) return json({ error: 'Enter the lounge’s full postal address.' }, 400, request, env);
+  await putSetting(env, 'marketing_address', address, got.user.id);
+  if (body.from) await putSetting(env, 'marketing_from', String(body.from).trim().slice(0, 200), got.user.id);
+  await audit(env, got.user, 'marketing.settings', null, null, 'Sender details updated');
+  return json({ ok: true }, 200, request, env);
+}
+
+/** Saves a draft, or updates one that has not gone out yet. */
+async function handleCampaignSave(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  const body = await request.json().catch(() => ({}));
+
+  const subject = String(body.subject || '').trim().slice(0, 200);
+  const text = String(body.body || '').trim().slice(0, 10000);
+  if (!subject) return json({ error: 'Give the email a subject.' }, 400, request, env);
+  if (!text) return json({ error: 'Write something to send.' }, 400, request, env);
+  if (body.imageUrl && !safeUrl(body.imageUrl)){
+    return json({ error: 'The image address must start with https://' }, 400, request, env);
+  }
+  if (body.linkUrl && !safeUrl(body.linkUrl)){
+    return json({ error: 'The button address must start with https://' }, 400, request, env);
+  }
+
+  const now = new Date().toISOString();
+  const fields = [subject, text, body.imageUrl || null, body.linkUrl || null,
+                  String(body.linkLabel || '').slice(0, 60) || null];
+
+  if (body.id){
+    const existing = await env.DB.prepare('SELECT status FROM campaigns WHERE id = ?')
+      .bind(Number(body.id)).first();
+    if (!existing) return json({ error: 'No such campaign.' }, 404, request, env);
+    if (existing.status !== 'draft'){
+      return json({ error: 'That campaign has already been sent. Start a new one.' }, 400, request, env);
+    }
+    await env.DB.prepare(
+      `UPDATE campaigns SET subject = ?, body = ?, image_url = ?, link_url = ?, link_label = ?
+        WHERE id = ?`
+    ).bind(...fields, Number(body.id)).run();
+    return json({ ok: true, id: Number(body.id) }, 200, request, env);
+  }
+
+  const res = await env.DB.prepare(
+    `INSERT INTO campaigns (subject, body, image_url, link_url, link_label, created_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(...fields, got.user.id, now).run();
+  return json({ ok: true, id: res.meta.last_row_id }, 201, request, env);
+}
+
+/** Everyone who opted in and has not been sent this campaign yet. */
+async function pendingRecipients(env, campaignId, limit){
+  const r = await env.DB.prepare(
+    `SELECT u.id, u.name, u.email, u.unsub_token
+       FROM users u
+      WHERE u.marketing_opt_in = 1
+        AND u.id NOT IN (SELECT user_id FROM campaign_sends WHERE campaign_id = ?)
+      ORDER BY u.id LIMIT ?`
+  ).bind(campaignId, limit).all();
+  return r.results || [];
+}
+
+/**
+ * Sends one chunk and reports progress, rather than trying to do everything in
+ * one request. Keeps each invocation inside the worker's limits, and means a
+ * send that is interrupted resumes exactly where it stopped instead of
+ * emailing anyone twice.
+ */
+async function handleCampaignSend(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  if (!env.RESEND_API_KEY){
+    return json({ error: 'Email sending is not set up on this site yet.' }, 503, request, env);
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const id = Number(body.id);
+  const campaign = await env.DB.prepare('SELECT * FROM campaigns WHERE id = ?').bind(id).first();
+  if (!campaign) return json({ error: 'No such campaign.' }, 404, request, env);
+  if (campaign.status === 'sent') return json({ error: 'That campaign has already been sent.' }, 400, request, env);
+
+  const settings = await marketingSettings(env);
+  if (!settings.address){
+    return json({ error: 'Set the lounge’s postal address before sending. US law requires it in every marketing email.' }, 400, request, env);
+  }
+
+  const total = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM users WHERE marketing_opt_in = 1').first();
+  const recipients = await pendingRecipients(env, id, SEND_CHUNK);
+
+  if (!recipients.length){
+    await env.DB.prepare(
+      `UPDATE campaigns SET status = 'sent', finished_at = ? WHERE id = ?`
+    ).bind(new Date().toISOString(), id).run();
+    await audit(env, got.user, 'marketing.sent', null, id,
+      `"${campaign.subject}" — ${campaign.sent} sent, ${campaign.failed} failed`);
+    return json({ ok: true, done: true, total: total?.n || 0,
+                  sent: campaign.sent, failed: campaign.failed }, 200, request, env);
+  }
+
+  if (campaign.status === 'draft'){
+    await env.DB.prepare(`UPDATE campaigns SET status = 'sending', started_at = ? WHERE id = ?`)
+      .bind(new Date().toISOString(), id).run();
+  }
+
+  const now = new Date().toISOString();
+  const rows = [];
+  let sent = 0, failed = 0;
+
+  for (const person of recipients){
+    // Anyone registered before unsubscribe tokens existed gets one now.
+    let token = person.unsub_token;
+    if (!token){
+      token = randomHex(16);
+      await env.DB.prepare('UPDATE users SET unsub_token = ? WHERE id = ?').bind(token, person.id).run();
+    }
+    const unsub = unsubUrl(env, token);
+    const res = await sendEmail(env, person.email, campaign.subject,
+      campaignText(campaign, unsub, settings.address),
+      campaignHtml(campaign, env, unsub, settings.address),
+      {
+        // Lets Gmail and Apple Mail show their own unsubscribe control, which
+        // bulk senders are expected to support.
+        'List-Unsubscribe': '<' + unsub + '>',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+      },
+      settings.from);
+
+    rows.push(env.DB.prepare(
+      `INSERT OR REPLACE INTO campaign_sends (campaign_id, user_id, email, status, error, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(id, person.id, person.email, res.ok ? 'sent' : 'failed',
+           res.ok ? null : String(res.error || '').slice(0, 200), now));
+    res.ok ? sent++ : failed++;
+  }
+
+  await env.DB.batch(rows);
+  await env.DB.prepare('UPDATE campaigns SET sent = sent + ?, failed = failed + ? WHERE id = ?')
+    .bind(sent, failed, id).run();
+
+  const doneCount = (campaign.sent || 0) + (campaign.failed || 0) + recipients.length;
+  return json({
+    ok: true, done: false, total: total?.n || 0, progress: doneCount,
+    sent: (campaign.sent || 0) + sent, failed: (campaign.failed || 0) + failed
+  }, 200, request, env);
+}
+
+/** One copy to the owner, so a campaign can be read before anyone else gets it. */
+async function handleCampaignTest(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  if (!env.RESEND_API_KEY){
+    return json({ error: 'Email sending is not set up on this site yet.' }, 503, request, env);
+  }
+  const body = await request.json().catch(() => ({}));
+  const campaign = await env.DB.prepare('SELECT * FROM campaigns WHERE id = ?')
+    .bind(Number(body.id)).first();
+  if (!campaign) return json({ error: 'Save the campaign first.' }, 404, request, env);
+
+  const settings = await marketingSettings(env);
+  const address = settings.address || '[your postal address goes here]';
+  const unsub = unsubUrl(env, 'test-link-not-live');
+  const res = await sendEmail(env, got.user.email, '[TEST] ' + campaign.subject,
+    campaignText(campaign, unsub, address),
+    campaignHtml(campaign, env, unsub, address), null, settings.from);
+
+  if (!res.ok) return json({ error: 'Could not send: ' + res.error }, 502, request, env);
+  return json({ ok: true, to: got.user.email }, 200, request, env);
+}
+
+async function handleCampaignList(request, env){
+  const got = await requireRole(request, env, 'owner');
+  if (got.error) return got.error;
+  const r = await env.DB.prepare(
+    `SELECT id, subject, created_at, finished_at, sent, failed, status
+       FROM campaigns ORDER BY id DESC LIMIT 50`
+  ).all();
+  const one = new URL(request.url).searchParams.get('id');
+  const draft = one
+    ? await env.DB.prepare('SELECT * FROM campaigns WHERE id = ?').bind(Number(one)).first()
+    : null;
+  return json({ campaigns: r.results || [], campaign: draft }, 200, request, env);
+}
+
+/**
+ * Public, and deliberately so: an unsubscribe link that needs a password is
+ * not an unsubscribe link. The token identifies the person and does nothing
+ * else - it cannot read or change anything on the account.
+ */
+async function handleUnsubscribe(request, env){
+  const url = new URL(request.url);
+  let token = url.searchParams.get('t') || '';
+  if (!token && request.method === 'POST'){
+    const body = await request.json().catch(() => ({}));
+    token = String(body.t || '');
+  }
+  if (!token) return json({ error: 'That link is not valid.' }, 400, request, env);
+
+  const user = await env.DB.prepare(
+    'SELECT id, email, marketing_opt_in FROM users WHERE unsub_token = ?').bind(token).first();
+  // Same answer for an unknown token, so the link cannot be used to test
+  // whether an address is on the list.
+  if (!user) return json({ ok: true, already: true }, 200, request, env);
+
+  if (user.marketing_opt_in){
+    await env.DB.prepare(
+      'UPDATE users SET marketing_opt_in = 0, opt_in_at = NULL WHERE id = ?').bind(user.id).run();
+    await env.DB.prepare(
+      `INSERT INTO audit_log (actor_id, actor_role, action, target_user, entity_id, details, created_at)
+       VALUES (?, 'customer', 'marketing.unsubscribe', ?, NULL, ?, ?)`
+    ).bind(user.id, user.id, 'Unsubscribed from promotional email', new Date().toISOString()).run();
+  }
+  return json({ ok: true, already: !user.marketing_opt_in }, 200, request, env);
+}
+
+/** Someone signed in changing their own mind, from their account. */
+async function handleMarketingPreference(request, env){
+  const user = await currentUser(request, env);
+  if (!user) return json({ error: 'Not signed in.' }, 401, request, env);
+  const body = await request.json().catch(() => ({}));
+  const on = body.optIn === true;
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE users SET marketing_opt_in = ?, opt_in_at = ?, opt_in_text = ?,
+       unsub_token = COALESCE(unsub_token, ?) WHERE id = ?`
+  ).bind(on ? 1 : 0, on ? now : null,
+         on ? 'Changed from account settings' : null, randomHex(16), user.id).run();
+  return json({ ok: true, optIn: on }, 200, request, env);
+}
+
 async function handleLogout(request, env){
   const token = bearer(request);
   if (token){
@@ -1627,6 +1956,13 @@ export default {
       if (url.pathname === '/auth/logout'   && request.method === 'POST') return await handleLogout(request, env);
       if (url.pathname === '/auth/reset/request' && request.method === 'POST') return await handleResetRequest(request, env);
       if (url.pathname === '/auth/reset/confirm' && request.method === 'POST') return await handleResetConfirm(request, env);
+      if (url.pathname === '/unsubscribe') return await handleUnsubscribe(request, env);
+      if (url.pathname === '/me/marketing'  && request.method === 'POST') return await handleMarketingPreference(request, env);
+      if (url.pathname === '/marketing/settings')                         return await handleMarketingSettings(request, env);
+      if (url.pathname === '/marketing/campaigns' && request.method === 'GET')  return await handleCampaignList(request, env);
+      if (url.pathname === '/marketing/campaign'  && request.method === 'POST') return await handleCampaignSave(request, env);
+      if (url.pathname === '/marketing/test'      && request.method === 'POST') return await handleCampaignTest(request, env);
+      if (url.pathname === '/marketing/send'      && request.method === 'POST') return await handleCampaignSend(request, env);
       if (url.pathname === '/auth/me'       && request.method === 'GET')  return await handleMe(request, env);
       if (url.pathname === '/track'         && request.method === 'POST') return await handleTrack(request, env);
       if (url.pathname === '/stats'         && request.method === 'GET')  return await handleStats(request, env);

@@ -44,6 +44,48 @@ CREATE TABLE IF NOT EXISTS password_resets (
 
 CREATE INDEX IF NOT EXISTS idx_resets_user ON password_resets(user_id, created_at);
 
+-- ═══════════════════════════════════════════════════════════════════
+--  MARKETING EMAIL
+-- ═══════════════════════════════════════════════════════════════════
+
+-- Who agreed, when, and to what wording. The wording is stored with the
+-- consent because "they ticked a box" is worth little if nobody can say what
+-- the box said at the time.
+ALTER TABLE users ADD COLUMN marketing_opt_in INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN opt_in_at TEXT;
+ALTER TABLE users ADD COLUMN opt_in_text TEXT;
+ALTER TABLE users ADD COLUMN unsub_token TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_users_optin ON users(marketing_opt_in);
+
+CREATE TABLE IF NOT EXISTS campaigns (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  subject     TEXT NOT NULL,
+  body        TEXT NOT NULL,          -- plain text as typed; the HTML is built at send time
+  image_url   TEXT,
+  link_url    TEXT,
+  link_label  TEXT,
+  created_by  INTEGER REFERENCES users(id),
+  created_at  TEXT NOT NULL,
+  started_at  TEXT,
+  finished_at TEXT,
+  sent        INTEGER NOT NULL DEFAULT 0,
+  failed      INTEGER NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'draft'   -- draft | sending | sent
+);
+
+-- One row per person per campaign, so a resumed send never emails anyone
+-- twice and a bounce can be traced to a recipient.
+CREATE TABLE IF NOT EXISTS campaign_sends (
+  campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email       TEXT NOT NULL,
+  status      TEXT NOT NULL,          -- sent | failed
+  error       TEXT,
+  sent_at     TEXT NOT NULL,
+  PRIMARY KEY (campaign_id, user_id)
+);
+
 -- Site analytics. `day` is the calendar day in America/Los_Angeles, so
 -- "today" on the dashboard means today in San Diego, not UTC.
 CREATE TABLE IF NOT EXISTS events (
